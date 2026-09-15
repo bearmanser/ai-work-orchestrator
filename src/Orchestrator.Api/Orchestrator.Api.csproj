@@ -11,10 +11,4 @@
     <ProjectReference Include="..\Orchestrator.Adapters.Teams\Orchestrator.Adapters.Teams.csproj" />
   </ItemGroup>
 
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-  </PropertyGroup>
-
 </Project>

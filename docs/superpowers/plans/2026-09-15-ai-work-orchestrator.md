@@ -17,7 +17,7 @@
 Every task's requirements implicitly include this section.
 
 - **Runtime:** .NET 10.0 exactly. `<TargetFramework>net10.0</TargetFramework>`, `<Nullable>enable</Nullable>`, `<TreatWarningsAsErrors>true</TreatWarningsAsErrors>`, `<ImplicitUsings>enable</ImplicitUsings>` in `Directory.Build.props`.
-- **Node:** Node 22 LTS, pinned in `admin/.nvmrc` and `admin/package.json` engines.
+- **Node:** Node 22 or newer. `admin/package.json` declares `"engines": { "node": ">=22" }` and `admin/.nvmrc` pins `22` for anyone who uses nvm. The development machine runs Node 24.18.1; Vite 6, React 19 and Vitest all support it, so the engines range must not carry an upper bound (pre-flight ruling).
 - **Database:** PostgreSQL 16. The orchestrator database is dedicated — no orchestrator table, queue, index, or audit row may live in a Kameleon business database. The connection string is resolved through `ISecretStore` from `Orchestrator:Database:ConnectionStringRef`, never a literal in source or appsettings.
 - **Assertions:** Use `Shouldly`. Do **not** add FluentAssertions — its v8+ licence is commercial.
 - **Time:** No `DateTime.Now` or `DateTime.UtcNow` anywhere under `src/`. Inject `TimeProvider` and call `timeProvider.GetUtcNow()`. All persisted timestamps are `timestamptz` / `DateTimeOffset` in UTC. An architecture test enforces this (Task 1).

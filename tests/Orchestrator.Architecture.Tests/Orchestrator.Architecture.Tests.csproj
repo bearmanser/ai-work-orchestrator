@@ -1,0 +1,38 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="NetArchTest.Rules" />
+    <PackageReference Include="Shouldly" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Orchestrator.Domain\Orchestrator.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Orchestrator.Application\Orchestrator.Application.csproj" />
+    <ProjectReference Include="..\..\src\Orchestrator.Infrastructure\Orchestrator.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Orchestrator.Adapters.Git\Orchestrator.Adapters.Git.csproj" />
+    <ProjectReference Include="..\..\src\Orchestrator.Adapters.AzureDevOps\Orchestrator.Adapters.AzureDevOps.csproj" />
+    <ProjectReference Include="..\..\src\Orchestrator.Adapters.Agent\Orchestrator.Adapters.Agent.csproj" />
+    <ProjectReference Include="..\..\src\Orchestrator.Adapters.Slack\Orchestrator.Adapters.Slack.csproj" />
+    <ProjectReference Include="..\..\src\Orchestrator.Adapters.Obsidian\Orchestrator.Adapters.Obsidian.csproj" />
+    <ProjectReference Include="..\..\src\Orchestrator.Adapters.P1\Orchestrator.Adapters.P1.csproj" />
+    <ProjectReference Include="..\..\src\Orchestrator.Adapters.Teams\Orchestrator.Adapters.Teams.csproj" />
+    <ProjectReference Include="..\..\src\Orchestrator.Api\Orchestrator.Api.csproj" />
+    <ProjectReference Include="..\..\src\Orchestrator.Cli\Orchestrator.Cli.csproj" />
+  </ItemGroup>
+
+</Project>

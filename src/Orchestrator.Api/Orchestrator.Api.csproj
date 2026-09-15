@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Orchestrator.Infrastructure\Orchestrator.Infrastructure.csproj" />
+    <ProjectReference Include="..\Orchestrator.Adapters.Git\Orchestrator.Adapters.Git.csproj" />
+    <ProjectReference Include="..\Orchestrator.Adapters.AzureDevOps\Orchestrator.Adapters.AzureDevOps.csproj" />
+    <ProjectReference Include="..\Orchestrator.Adapters.Agent\Orchestrator.Adapters.Agent.csproj" />
+    <ProjectReference Include="..\Orchestrator.Adapters.Slack\Orchestrator.Adapters.Slack.csproj" />
+    <ProjectReference Include="..\Orchestrator.Adapters.Obsidian\Orchestrator.Adapters.Obsidian.csproj" />
+    <ProjectReference Include="..\Orchestrator.Adapters.P1\Orchestrator.Adapters.P1.csproj" />
+    <ProjectReference Include="..\Orchestrator.Adapters.Teams\Orchestrator.Adapters.Teams.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+</Project>

@@ -117,6 +117,72 @@ namespace Orchestrator.Infrastructure.Persistence.Migrations
                     b.ToTable("outbox_messages", "orchestrator");
                 });
 
+            modelBuilder.Entity("Orchestrator.Domain.Steps.Step", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempt_count");
+
+                    b.Property<string>("Capability")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("capability");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("DependsOnStepId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("depends_on_step_id");
+
+                    b.Property<string>("FailureReason")
+                        .HasColumnType("text")
+                        .HasColumnName("failure_reason");
+
+                    b.Property<string>("InputArtifactId")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("input_artifact_id");
+
+                    b.Property<DateTimeOffset?>("LeaseExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("lease_expires_at");
+
+                    b.Property<string>("LeaseOwner")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("lease_owner");
+
+                    b.Property<string>("OutputArtifactId")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("output_artifact_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("TaskId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("task_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Status", "LeaseExpiresAt");
+
+                    b.HasIndex("TaskId", "Status");
+
+                    b.ToTable("steps", "orchestrator");
+                });
+
             modelBuilder.Entity("Orchestrator.Domain.Tasks.WorkTask", b =>
                 {
                     b.Property<Guid>("Id")

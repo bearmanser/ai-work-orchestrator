@@ -2,6 +2,7 @@ using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Orchestrator.Domain.Messaging;
+using Orchestrator.Domain.Steps;
 using Orchestrator.Domain.Tasks;
 
 namespace Orchestrator.Infrastructure.Persistence;
@@ -12,6 +13,7 @@ public class OrchestratorDbContext(DbContextOptions<OrchestratorDbContext> optio
     public DbSet<WorkTask> Tasks => Set<WorkTask>();
     public DbSet<OutboxMessage> Outbox => Set<OutboxMessage>();
     public DbSet<InboundEvent> InboundEvents => Set<InboundEvent>();
+    public DbSet<Step> Steps => Set<Step>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

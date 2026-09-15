@@ -64,6 +64,16 @@ public class OutboxTests(PostgresFixture fixture)
     [Fact]
     public async Task DispatchBatch_MarksProcessed_AndIsNotRedelivered()
     {
+        // This assembly's PostgreSQL fixture (and its outbox_messages table) is
+        // shared across every test in this class for the lifetime of the test run.
+        // DispatchBatchAsync's batch scan is not scoped to "this test's own
+        // messages" - it is a global SELECT ... LIMIT over whatever is currently
+        // eligible. Draining any already-eligible messages first (left behind by,
+        // e.g., Enqueue_DuplicateIdempotencyKey_IsRejectedByUniqueIndex's first,
+        // never-dispatched insert) keeps this test's own exact-count assertions
+        // deterministic regardless of test execution order.
+        await DrainPendingAsync();
+
         var key = $"d-{Guid.NewGuid()}";
         var dispatched = new List<string>();
 
@@ -85,22 +95,92 @@ public class OutboxTests(PostgresFixture fixture)
     [Fact]
     public async Task DispatchBatch_HandlerThrows_RecordsErrorAndRetriesLater()
     {
+        // See DispatchBatch_MarksProcessed_AndIsNotRedelivered: drain first so this
+        // test's own dispatched-count assertions cannot be inflated or masked by
+        // unrelated messages left eligible by other tests in the shared fixture.
+        await DrainPendingAsync();
+
         var key = $"e-{Guid.NewGuid()}";
+        var clock = new ManualTimeProvider(Now);
+
         await using (var seed = fixture.NewDbContext())
         {
-            new OutboxWriter(seed, TimeProvider.System).Enqueue("demo", new { }, null, key);
+            new OutboxWriter(seed, clock).Enqueue("demo", new { }, null, key);
             await seed.SaveChangesAsync();
         }
 
-        var failing = new OutboxDispatcher(
-            fixture.NewDbContext, (_, _) => throw new InvalidOperationException("boom"), TimeProvider.System);
-        await failing.DispatchBatchAsync(10, default);
+        var attempts = 0;
+        var handled = new List<string>();
+        var dispatcher = new OutboxDispatcher(
+            fixture.NewDbContext,
+            (m, _) =>
+            {
+                attempts++;
+                if (attempts == 1)
+                    throw new InvalidOperationException("boom");
+                handled.Add(m.IdempotencyKey);
+                return Task.CompletedTask;
+            },
+            clock);
 
-        await using var read = fixture.NewDbContext();
-        var message = await read.Outbox.SingleAsync(m => m.IdempotencyKey == key);
-        message.ProcessedAt.ShouldBeNull();
-        message.AttemptCount.ShouldBe(1);
-        message.LastError.ShouldNotBeNull();
-        message.LastError.ShouldContain("boom");
+        // First dispatch: the handler throws, so the message is recorded as failed
+        // with a future retry time and nothing is dispatched successfully.
+        (await dispatcher.DispatchBatchAsync(10, default)).ShouldBe(0);
+
+        await using (var read = fixture.NewDbContext())
+        {
+            var message = await read.Outbox.SingleAsync(m => m.IdempotencyKey == key);
+            message.ProcessedAt.ShouldBeNull();
+            message.AttemptCount.ShouldBe(1);
+            message.LastError.ShouldNotBeNull();
+            message.LastError.ShouldContain("boom");
+            message.NextAttemptAt.ShouldNotBeNull();
+            message.NextAttemptAt!.Value.ShouldBeGreaterThan(clock.GetUtcNow());
+
+            // Second dispatch, same clock: the message is still backing off, so the
+            // dispatcher's WHERE clause must exclude it - no redelivery, no second
+            // handler invocation.
+            (await dispatcher.DispatchBatchAsync(10, default)).ShouldBe(0);
+            attempts.ShouldBe(1);
+
+            // Advance the clock past NextAttemptAt: the message must come back and,
+            // this time, succeed - proving it was excluded rather than lost.
+            clock.Advance(message.NextAttemptAt!.Value - clock.GetUtcNow() + TimeSpan.FromSeconds(1));
+        }
+
+        (await dispatcher.DispatchBatchAsync(10, default)).ShouldBe(1);
+        handled.ShouldBe([key]);
+
+        await using var final = fixture.NewDbContext();
+        (await final.Outbox.SingleAsync(m => m.IdempotencyKey == key)).ProcessedAt.ShouldNotBeNull();
     }
+
+    /// <summary>
+    /// Drains every currently-eligible outbox message with a no-op handler. Used by
+    /// tests that assert an exact dispatched count, to isolate them from unrelated
+    /// messages other tests left behind in this class's shared PostgreSQL fixture.
+    /// </summary>
+    private async Task DrainPendingAsync()
+    {
+        var drain = new OutboxDispatcher(fixture.NewDbContext, (_, _) => Task.CompletedTask, TimeProvider.System);
+        while (await drain.DispatchBatchAsync(1000, default) > 0)
+        {
+        }
+    }
+}
+
+/// <summary>
+/// A minimal, manually-advanced <see cref="TimeProvider"/> for tests that need to
+/// control exactly when time passes (e.g. proving a backoff window is honored)
+/// without real delays or sleeps. This repository does not otherwise reference the
+/// Microsoft.Extensions.TimeProvider.Testing package's FakeTimeProvider, so this
+/// small local type avoids adding a new package dependency for a single test.
+/// </summary>
+internal sealed class ManualTimeProvider(DateTimeOffset now) : TimeProvider
+{
+    private DateTimeOffset _now = now;
+
+    public override DateTimeOffset GetUtcNow() => _now;
+
+    public void Advance(TimeSpan by) => _now += by;
 }

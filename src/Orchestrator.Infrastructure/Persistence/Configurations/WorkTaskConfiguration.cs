@@ -16,7 +16,7 @@ public sealed class WorkTaskConfiguration : IEntityTypeConfiguration<WorkTask>
         b.Property(t => t.CorrelationId).HasMaxLength(300).IsRequired();
         b.Property(t => t.State).HasConversion<string>().HasMaxLength(60).IsRequired();
         b.Property(t => t.Source).HasConversion<string>().HasMaxLength(20).IsRequired();
-        b.Property(t => t.Version).IsRowVersion(); // maps to xmin on PostgreSQL
+        b.Property(t => t.Version).IsRowVersion().HasColumnName("xmin"); // PostgreSQL system column
         b.HasIndex(t => t.CorrelationId).IsUnique();
         b.HasIndex(t => t.State);
     }

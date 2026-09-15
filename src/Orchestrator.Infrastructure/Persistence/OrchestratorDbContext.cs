@@ -1,5 +1,6 @@
 using System.Text;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Orchestrator.Domain.Messaging;
 using Orchestrator.Domain.Tasks;
 
@@ -19,14 +20,17 @@ public class OrchestratorDbContext(DbContextOptions<OrchestratorDbContext> optio
         foreach (var entity in modelBuilder.Model.GetEntityTypes())
             foreach (var property in entity.GetProperties())
             {
-                // A uint concurrency token maps to PostgreSQL's "xmin" system column via
-                // Npgsql's own model-finalizing convention, which runs after OnModelCreating
-                // and only assigns "xmin" when no explicit column name has been configured.
-                // Leave it untouched here - naming it ourselves (even "xmin") would make EF
-                // treat it as an explicit override and, worse, would let a later rename
-                // attempt an invalid ALTER TABLE ... RENAME COLUMN xmin TO ... against a
-                // PostgreSQL system column.
-                if (property.ClrType == typeof(uint) && property.IsConcurrencyToken)
+                // Identity-based escape hatch: a property whose column name has already
+                // been configured explicitly (e.g. WorkTaskConfiguration's
+                // .HasColumnName("xmin") for the row-version token, which maps to
+                // PostgreSQL's "xmin" system column) is left untouched. This runs after
+                // ApplyConfigurationsFromAssembly, so the explicit annotation is already
+                // present by the time we get here. Renaming a system column like xmin
+                // produces an invalid ALTER TABLE ... RENAME COLUMN at migration time, so
+                // any future property that needs the same treatment can opt out the same
+                // way - configure its column name explicitly - without this loop needing
+                // to know why.
+                if (property.FindAnnotation(RelationalAnnotationNames.ColumnName) is not null)
                     continue;
 
                 property.SetColumnName(ToSnakeCase(property.Name));

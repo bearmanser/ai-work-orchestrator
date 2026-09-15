@@ -41,4 +41,12 @@ public sealed class WorkTask
         Objective = objective;
         UpdatedAt = now.ToUniversalTime();
     }
+
+    public void Fire(TaskTrigger trigger, DateTimeOffset now)
+    {
+        if (!TaskStateMachine.TryTransition(State, trigger, out var next))
+            throw new InvalidTransitionException(State, trigger);
+        State = next;
+        UpdatedAt = now.ToUniversalTime();
+    }
 }

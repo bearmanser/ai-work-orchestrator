@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1120" viewBox="0 0 1440 1120" role="img" aria-labelledby="title description">
+<title id="title">AI Work Orchestrator system architecture</title><desc id="description">Eight equal-sized components surround the orchestrator at equal distances. People exchange task requests, answers and approvals with Slack, which connects to the orchestrator. Every connection is bidirectional.</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/></marker></defs>
+<rect width="1440" height="1120" fill="#f8fafc"/><g font-family="Segoe UI, Arial, sans-serif" text-anchor="middle"><text x="720" y="48" fill="#0f172a" font-size="26" font-weight="700">AI Work Orchestrator</text><text x="720" y="78" fill="#475569" font-size="16">One task, coordinated across specialized components</text>
+<line x1="900" y1="447" x2="900" y2="313" stroke="#64748b" stroke-width="2" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+<line x1="979.903" y1="480.097" x2="1074.655" y2="385.345" stroke="#64748b" stroke-width="2" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+<line x1="1013" y1="560" x2="1147" y2="560" stroke="#64748b" stroke-width="2" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+<line x1="979.903" y1="639.903" x2="1074.655" y2="734.655" stroke="#64748b" stroke-width="2" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+<line x1="900" y1="673" x2="900" y2="807" stroke="#64748b" stroke-width="2" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+<line x1="820.097" y1="639.903" x2="725.345" y2="734.655" stroke="#64748b" stroke-width="2" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+<line x1="787" y1="560" x2="653" y2="560" stroke="#64748b" stroke-width="2" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+<line x1="820.097" y1="480.097" x2="725.345" y2="385.345" stroke="#64748b" stroke-width="2" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+<line x1="427" y1="560" x2="293" y2="560" stroke="#64748b" stroke-width="2" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+<g id="orchestrator" transform="translate(900 560)"><circle r="108" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/><text y="-32" font-size="20" font-weight="700" fill="#0f172a">AI Orchestrator</text>
+<text y="1" font-size="13" fill="#334155">Plan and coordinate</text>
+<text y="23" font-size="13" fill="#334155">Confirm scope in Slack</text>
+<text y="45" font-size="13" fill="#334155">Track work to PR approval</text>
+</g>
+<g id="admin" transform="translate(900 200)"><circle r="108" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/><text y="-32" font-size="20" font-weight="700" fill="#0f172a">Admin page</text>
+<text y="1" font-size="13" fill="#334155">Configure integrations</text>
+<text y="23" font-size="13" fill="#334155">Inspect tasks and costs</text>
+<text y="45" font-size="13" fill="#334155">Manage access and recovery</text>
+</g>
+<g id="agent" transform="translate(1154.558 305.442)"><circle r="108" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/><text y="-32" font-size="20" font-weight="700" fill="#0f172a">Coding worker</text>
+<text y="1" font-size="13" fill="#334155">Implement confirmed plans</text>
+<text y="23" font-size="13" fill="#334155">Run approved local tests</text>
+<text y="45" font-size="13" fill="#334155">Address PR review feedback</text>
+</g>
+<g id="git" transform="translate(1260 560)"><circle r="108" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/><text y="-32" font-size="20" font-weight="700" fill="#0f172a">Git</text>
+<text y="1" font-size="13" fill="#334155">Repository and history</text>
+<text y="23" font-size="13" fill="#334155">Isolated working branches</text>
+<text y="45" font-size="13" fill="#334155">Diffs and pull requests</text>
+</g>
+<g id="p1" transform="translate(1154.558 814.558)"><circle r="108" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/><text y="-32" font-size="20" font-weight="700" fill="#0f172a">P1 MCP / SQL</text>
+<text y="1" font-size="13" fill="#334155">Scoped domain context</text>
+<text y="23" font-size="13" fill="#334155">Staging validation</text>
+<text y="45" font-size="13" fill="#334155">HTTP and SQL evidence</text>
+</g>
+<g id="store" transform="translate(900 920)"><circle r="108" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/><text y="-32" font-size="20" font-weight="700" fill="#0f172a">State and audit</text>
+<text y="1" font-size="13" fill="#334155">Tasks and approvals</text>
+<text y="23" font-size="13" fill="#334155">Evidence and checkpoints</text>
+<text y="45" font-size="13" fill="#334155">Retries and recovery</text>
+</g>
+<g id="vault" transform="translate(645.442 814.558)"><circle r="108" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/><text y="-32" font-size="20" font-weight="700" fill="#0f172a">Obsidian</text>
+<text y="1" font-size="13" fill="#334155">Architecture and conventions</text>
+<text y="23" font-size="13" fill="#334155">Durable decisions and lessons</text>
+<text y="45" font-size="13" fill="#334155">Curated knowledge updates</text>
+</g>
+<g id="slack" transform="translate(540 560)"><circle r="108" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/><text y="-32" font-size="20" font-weight="700" fill="#0f172a">Slack</text>
+<text y="1" font-size="13" fill="#334155">Task inbox and replies</text>
+<text y="23" font-size="13" fill="#334155">Questions and approvals</text>
+<text y="45" font-size="13" fill="#334155">Progress and results</text>
+</g>
+<g id="teams" transform="translate(645.442 305.442)"><circle r="108" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/><text y="-32" font-size="20" font-weight="700" fill="#0f172a">Teams</text>
+<text y="1" font-size="13" fill="#334155">Approved meeting input</text>
+<text y="23" font-size="13" fill="#334155">Decisions and assignments</text>
+<text y="45" font-size="13" fill="#334155">Clarify ambiguous requests</text>
+</g>
+<g id="people" transform="translate(180 560)"><circle r="108" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/><text y="-32" font-size="20" font-weight="700" fill="#0f172a">People</text>
+<text y="1" font-size="13" fill="#334155">Set up tasks through Slack</text>
+<text y="23" font-size="13" fill="#334155">Provide domain answers</text>
+<text y="45" font-size="13" fill="#334155">Approve scoped actions</text>
+</g>
+<text x="720" y="1070" font-size="15" fill="#475569">All component actions pass through orchestrator authorization and audit.</text></g></svg>

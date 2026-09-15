@@ -6,5 +6,9 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <!-- NuGetAudit only scans direct package references; transitive advisories (e.g. pulled in by
+         Microsoft.EntityFrameworkCore.Design or Testcontainers) are outside our control to bump and
+         would otherwise fail every restore under TreatWarningsAsErrors. -->
+    <NuGetAuditMode>direct</NuGetAuditMode>
   </PropertyGroup>
 </Project>

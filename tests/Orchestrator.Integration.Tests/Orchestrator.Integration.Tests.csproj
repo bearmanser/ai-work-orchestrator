@@ -9,10 +9,17 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="Shouldly" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
   </ItemGroup>
 
   <ItemGroup>
     <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Orchestrator.Domain\Orchestrator.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Orchestrator.Infrastructure\Orchestrator.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

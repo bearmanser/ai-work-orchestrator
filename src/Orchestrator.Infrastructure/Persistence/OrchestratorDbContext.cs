@@ -11,6 +11,7 @@ public class OrchestratorDbContext(DbContextOptions<OrchestratorDbContext> optio
 {
     public DbSet<WorkTask> Tasks => Set<WorkTask>();
     public DbSet<OutboxMessage> Outbox => Set<OutboxMessage>();
+    public DbSet<InboundEvent> InboundEvents => Set<InboundEvent>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

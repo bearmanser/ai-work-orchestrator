@@ -27,6 +27,20 @@ public sealed class PostgresFixture : IAsyncLifetime
     }
 
     public Task DisposeAsync() => _container.DisposeAsync().AsTask();
+
+    public async Task ResetAsync()
+    {
+        await using var db = NewDbContext();
+        await db.Database.ExecuteSqlRawAsync("""
+            DO $$ DECLARE
+                r RECORD;
+            BEGIN
+                FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'orchestrator' AND tablename != '__EFMigrationsHistory') LOOP
+                    EXECUTE 'TRUNCATE TABLE orchestrator.' || quote_ident(r.tablename) || ' CASCADE';
+                END LOOP;
+            END $$;
+            """);
+    }
 }
 
 [CollectionDefinition(nameof(PostgresCollection))]

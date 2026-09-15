@@ -128,7 +128,8 @@ The system cannot be tested at all until state survives a restart, so the durabl
 ### Task 1: Solution skeleton with enforced boundaries
 
 **Files:**
-- Create: `Orchestrator.sln`, `Directory.Build.props`, `Directory.Packages.props`, `global.json`, `.editorconfig`, `.gitignore`
+- Create: `Orchestrator.sln`, `Directory.Build.props`, `Directory.Packages.props`, `global.json`, `.editorconfig`
+- Modify: `.gitignore` (already exists with `.superpowers/`, build output and secrets entries — extend it, never replace it)
 - Create: `src/Orchestrator.Domain/Orchestrator.Domain.csproj`, `src/Orchestrator.Application/Orchestrator.Application.csproj`, `src/Orchestrator.Infrastructure/Orchestrator.Infrastructure.csproj`, `src/Orchestrator.Api/Orchestrator.Api.csproj`, `src/Orchestrator.Cli/Orchestrator.Cli.csproj`
 - Create: `src/Orchestrator.Adapters.Git/`, `.AzureDevOps/`, `.Agent/`, `.Slack/`, `.Obsidian/`, `.P1/`, `.Teams/` csproj files
 - Test: `tests/Orchestrator.Architecture.Tests/AdapterIsolationTests.cs`, `tests/Orchestrator.Architecture.Tests/SourceConventionTests.cs`
@@ -374,7 +375,7 @@ git commit -m "chore: scaffold solution with enforced layer and adapter boundari
 ### Task 2: PostgreSQL persistence and the task aggregate
 
 **Files:**
-- Create: `src/Orchestrator.Domain/Tasks/WorkTask.cs`, `src/Orchestrator.Domain/Tasks/TaskSource.cs`
+- Create: `src/Orchestrator.Domain/Tasks/WorkTask.cs`, `src/Orchestrator.Domain/Tasks/TaskSource.cs`, `src/Orchestrator.Domain/Tasks/TaskState.cs` (placeholder enum; Task 3 replaces it)
 - Create: `src/Orchestrator.Infrastructure/Persistence/OrchestratorDbContext.cs`, `src/Orchestrator.Infrastructure/Persistence/Configurations/WorkTaskConfiguration.cs`
 - Create: `src/Orchestrator.Infrastructure/Persistence/Migrations/` (generated)
 - Test: `tests/Orchestrator.Integration.Tests/PostgresFixture.cs`, `tests/Orchestrator.Integration.Tests/WorkTaskPersistenceTests.cs`
@@ -4192,7 +4193,7 @@ git commit -m "feat: add agent contract with typed trusted/untrusted separation"
 
 **Files:**
 - Create: `src/Orchestrator.Adapters.Agent/SandboxedProcessRunner.cs`, `SandboxOptions.cs`, `ProcessResult.cs`
-- Create: `deploy/worker.Dockerfile`, `deploy/egress-allowlist.conf`, modify `deploy/docker-compose.yml`
+- Create: `deploy/worker.Dockerfile`, `deploy/egress-allowlist.conf`, `deploy/docker-compose.yml` (create it here with the `postgres`, `worker-image-builder` and `egress-proxy` services plus the internal `orchestrator-agent` network; Task 50 completes it with the `api` service)
 - Test: `tests/Orchestrator.Integration.Tests/SandboxedProcessRunnerTests.cs`
 
 **Interfaces:**
@@ -4872,15 +4873,29 @@ git commit -m "feat: execute build and test commands in the runtime and compare 
 
 ---
 
-### Task 30: Evidence bundles and PR descriptions
+### Task 30: Plan records, evidence bundles, and PR descriptions
+
+> **Execution-order ruling (pre-flight):** run Task 31 BEFORE this task — Task 30 consumes `DomainCheckResult`, which Task 31 defines. The plan's numbering is unchanged; only the dispatch order swaps.
+>
+> **Scope ruling (pre-flight):** the plan's `PlanContent` and `PlanRevision` domain records were originally introduced in Task 36, which this task referenced forward. They are pure domain types with no dependencies, so they are created HERE, together with the `PlanRevisionTests` hash suite. Task 36 then builds only the confirmation service, Block Kit rendering, and persistence on top of them.
 
 **Files:**
+- Create: `src/Orchestrator.Domain/Plans/PlanContent.cs`, `src/Orchestrator.Domain/Plans/PlanRevision.cs`
 - Create: `src/Orchestrator.Domain/Evidence/TaskEvidence.cs`
 - Create: `src/Orchestrator.Application/Evidence/EvidenceAssembler.cs`, `PullRequestDescriptionBuilder.cs`
-- Test: `tests/Orchestrator.Application.Tests/PullRequestDescriptionBuilderTests.cs`
+- Test: `tests/Orchestrator.Domain.Tests/PlanRevisionTests.cs`, `tests/Orchestrator.Application.Tests/PullRequestDescriptionBuilderTests.cs`
+
+**Plan records to create here** (the `PlanRevisionTests` suite in Task 36 tests exactly these — write that suite in this task):
+
+- `PlanContent = record(string Objective, IReadOnlyList<string> Scope, IReadOnlyList<string> Exclusions, string Approach, IReadOnlyList<PlannedRepositoryChange> RepositoryChanges, IReadOnlyList<string> Tests, IReadOnlyList<string> Risks, IReadOnlyList<string> OpenQuestions, BudgetLimits Budget)`.
+- `PlannedRepositoryChange = record(Guid RepositoryId, string RepositoryName, ChangeIntent Intent, string BaselineCommit)` with `ChangeIntent { ReferenceOnly, Change }`.
+- `PlanRevision` with `Id`, `TaskId`, `RevisionNumber`, `PlanContent Content`, `string ContentHash`, `ConfirmationStatus ConfirmationStatus`, `Guid? ConfirmedByPersonId`, `DateTimeOffset? ConfirmedAt`, `Guid? SupersededByRevisionId`, `Guid? ContextSnapshotId`; `ConfirmationStatus { Pending, Confirmed, ChangesRequested, Superseded }`.
+- `static string PlanRevision.ComputeHash(PlanContent content)` — SHA-256 over canonical JSON that preserves list order and includes every `PlannedRepositoryChange.BaselineCommit`, returned as `sha256:<hex>`.
+
+Copy the five `PlanRevisionTests` cases verbatim from Task 36's Step 1 and place them in `tests/Orchestrator.Domain.Tests/PlanRevisionTests.cs`.
 
 **Interfaces:**
-- Consumes: `CheckResult` (Task 29), `GitDiff` (Task 18), `PlanRevision` (Task 36), `DomainCheckResult` (Task 31).
+- Consumes: `CheckResult` (Task 29), `GitDiff` (Task 18), `BudgetLimits` (Task 10), `DomainCheckResult` (Task 31 — dispatched before this task).
 - Produces:
   - `EvidenceAssembler.AssembleAsync(Guid taskId, CancellationToken)` → `Task<TaskEvidence>` = `record(IReadOnlyList<CheckResult> RuntimeChecks, IReadOnlyList<DomainCheckResult> DomainChecks, GitDiffSummary Diff, string PlanRevisionHash, IReadOnlyList<string> UnresolvedQuestions)`.
   - `PullRequestDescriptionBuilder.Build(TaskEvidence evidence, PlanRevision plan, IReadOnlyList<PullRequestRef> siblingPullRequests)` → `string` markdown.
@@ -5685,21 +5700,20 @@ git commit -m "feat: add durable human question loop with reminders, escalation 
 
 ---
 
-### Task 36: Plan revisions and Slack confirmation
+### Task 36: Slack plan confirmation
+
+> **Scope ruling (pre-flight):** `PlanContent`, `PlanRevision`, and `PlanRevision.ComputeHash` are created in Task 30, along with the `PlanRevisionTests` suite shown in Step 1 below. Do NOT recreate them. This task consumes them and adds persistence, the confirmation service, Block Kit rendering, and the interactive endpoint. Step 1's `PlanRevisionTests` block is reproduced here only as the contract those types already satisfy — run it, do not rewrite it.
 
 **Files:**
-- Create: `src/Orchestrator.Domain/Plans/PlanRevision.cs`, `PlanContent.cs`
+- Create: `src/Orchestrator.Infrastructure/Persistence/Configurations/PlanRevisionConfiguration.cs` + migration
 - Create: `src/Orchestrator.Application/Plans/PlanConfirmationService.cs`, `PlanBlockKitBuilder.cs`
 - Create: `src/Orchestrator.Api/Webhooks/SlackInteractiveEndpoint.cs`
-- Test: `tests/Orchestrator.Domain.Tests/PlanRevisionTests.cs`, `tests/Orchestrator.Application.Tests/PlanConfirmationServiceTests.cs`
+- Test: `tests/Orchestrator.Application.Tests/PlanConfirmationServiceTests.cs`
 
 **Interfaces:**
-- Consumes: `ApprovalService` (Task 15), `OwnershipDirectory` (Task 33), `IChatGateway` (Task 35).
+- Consumes: `PlanContent`, `PlanRevision`, `PlanRevision.ComputeHash` (Task 30), `ApprovalService` (Task 15), `OwnershipDirectory` (Task 33), `IChatGateway` (Task 35).
 - Produces:
-  - `PlanContent = record(string Objective, IReadOnlyList<string> Scope, IReadOnlyList<string> Exclusions, string Approach, IReadOnlyList<PlannedRepositoryChange> RepositoryChanges, IReadOnlyList<string> Tests, IReadOnlyList<string> Risks, IReadOnlyList<string> OpenQuestions, BudgetLimits Budget)`.
-  - `PlannedRepositoryChange = record(Guid RepositoryId, string RepositoryName, ChangeIntent Intent, string BaselineCommit)` with `ChangeIntent { ReferenceOnly, Change }`.
-  - `PlanRevision` with `Id`, `TaskId`, `RevisionNumber`, `PlanContent Content`, `string ContentHash`, `ConfirmationStatus`, `ConfirmedByPersonId`, `ConfirmedAt`, `SupersededByRevisionId`.
-  - `PlanRevision.ComputeHash(PlanContent)` → `string` — SHA-256 over canonical JSON **including each repository's baseline commit**, so a baseline that moved invalidates the confirmation (divergence 2).
+  - EF persistence for `PlanRevision` (owned-type `PlanContent` as `jsonb`, unique index on `(TaskId, RevisionNumber)`) plus its migration.
   - `PlanConfirmationService.PostForConfirmationAsync(Guid taskId, PlanContent content, CancellationToken)` → `Task<PlanRevision>`.
   - `PlanConfirmationService.HandleInteractionAsync(SlackInteraction interaction, CancellationToken)` → `Task<InteractionOutcome>`.
 

@@ -1,0 +1,20 @@
+# SDD scratch workspace (ledger, briefs, review packages)
+.superpowers/
+
+# .NET
+bin/
+obj/
+*.user
+artifacts/
+TestResults/
+*.trx
+
+# Node
+node_modules/
+dist/
+admin/coverage/
+
+# Local environment
+.env
+.env.local
+secrets/

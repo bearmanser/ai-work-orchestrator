@@ -1,6 +1,7 @@
 using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Orchestrator.Domain.Audit;
 using Orchestrator.Domain.Messaging;
 using Orchestrator.Domain.Steps;
 using Orchestrator.Domain.Tasks;
@@ -14,6 +15,7 @@ public class OrchestratorDbContext(DbContextOptions<OrchestratorDbContext> optio
     public DbSet<OutboxMessage> Outbox => Set<OutboxMessage>();
     public DbSet<InboundEvent> InboundEvents => Set<InboundEvent>();
     public DbSet<Step> Steps => Set<Step>();
+    public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

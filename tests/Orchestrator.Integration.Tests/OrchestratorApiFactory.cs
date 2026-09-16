@@ -13,6 +13,7 @@ namespace Orchestrator.Integration.Tests;
 public sealed class OrchestratorApiFactory : WebApplicationFactory<Program>
 {
     public static string? ConnectionString { get; set; }
+    public static string ArtifactsRoot { get; set; } = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "src", "Orchestrator.Api", "artifacts"));
 
     internal ManualTimeProvider Clock { get; } = new(DateTimeOffset.Parse("2026-09-16T10:00:00Z"));
 
@@ -22,6 +23,8 @@ public sealed class OrchestratorApiFactory : WebApplicationFactory<Program>
             "ConnectionStrings:Orchestrator",
             ConnectionString ?? throw new InvalidOperationException(
                 "Set OrchestratorApiFactory.ConnectionString from the test fixture before creating a client."));
+
+        builder.UseSetting("Orchestrator:Artifacts:Root", ArtifactsRoot);
 
         builder.ConfigureServices(services =>
         {

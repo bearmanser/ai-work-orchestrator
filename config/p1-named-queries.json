@@ -1,0 +1,16 @@
+[
+  {
+    "name": "picked-order-count",
+    "sql": "SELECT id, company, reference, status, picked_at FROM p1.orders WHERE company = @company AND picked_at >= @fromDate::date",
+    "parameters": ["company", "fromDate"],
+    "environments": ["staging"],
+    "requiresCompanyParameter": true
+  },
+  {
+    "name": "order-by-reference",
+    "sql": "SELECT id, company, reference, status, picked_at FROM p1.orders WHERE company = @company AND reference = @reference",
+    "parameters": ["company", "reference"],
+    "environments": ["staging"],
+    "requiresCompanyParameter": true
+  }
+]

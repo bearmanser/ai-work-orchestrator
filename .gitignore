@@ -18,6 +18,8 @@ admin/coverage/
 .env
 .env.local
 secrets/
+# ...except the secret store's own source code
+!src/Orchestrator.Infrastructure/Secrets/
 
 # Parallel task worktrees
 .worktrees/

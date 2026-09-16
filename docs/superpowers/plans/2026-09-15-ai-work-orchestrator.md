@@ -34,6 +34,46 @@ Every task's requirements implicitly include this section.
 
 ---
 
+## Parallel execution
+
+Tasks may be implemented concurrently, under the rules below. They exist because the
+failure modes here are silent: two agents in one checkout overwrite each other, and two
+EF migrations from the same base produce a schema chain that cannot be merged
+mechanically.
+
+**One worktree per task, always.** Each concurrent task gets its own `git worktree` on its
+own branch under `.worktrees/<task-slug>/`, branched from the current `main`. No two
+implementers ever share a checkout. `.worktrees/` is git-ignored. The task merges back to
+`main` only after its review is clean.
+
+**At most one migration-producing task in flight.** EF Core migrations form a linear chain
+and each one rewrites `OrchestratorDbContextModelSnapshot.cs`. Two tasks generating
+migrations from the same base each claim the same predecessor and both rewrite the
+snapshot, which is manual surgery to reconcile. Before starting a parallel batch, check
+each candidate task for a migration; schedule at most one, and pair it with tasks that
+touch no schema.
+
+**Check for shared files before dispatching a batch.** A task is only eligible for the
+batch if no other task in it creates or modifies the same file. `OrchestratorDbContext.cs`,
+`Directory.Packages.props`, `Program.cs` and the architecture test files are the usual
+collision points.
+
+**Integration tests are safe to run concurrently.** Each `PostgresFixture` starts its own
+Testcontainers instance, so parallel worktrees get separate databases and do not
+contaminate each other.
+
+**Merge order is review order.** A task merges to `main` when its own review is clean.
+The next task in the batch then rebases on the updated `main` and re-runs its tests before
+its own merge — a green worktree is not evidence of a green `main`.
+
+**Eligibility is determined from the `Interfaces` blocks**, not from task numbering. A task
+may start when every task named in its `Consumes` list has merged.
+
+Reviews, unlike implementations, are read-only and may always run concurrently with
+anything else.
+
+---
+
 ## Divergences from the spec
 
 Deliberate corrections to `PROJECT_PLAN.md`, applied because the system is being built in one pass:

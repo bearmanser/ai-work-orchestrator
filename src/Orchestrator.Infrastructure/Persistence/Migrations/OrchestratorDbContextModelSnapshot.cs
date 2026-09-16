@@ -439,6 +439,78 @@ namespace Orchestrator.Infrastructure.Persistence.Migrations
                     b.ToTable("outbox_messages", "orchestrator");
                 });
 
+            modelBuilder.Entity("Orchestrator.Domain.Repositories.RepositoryProfile", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AccessPolicy")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("access_policy");
+
+                    b.Property<string>("DefaultBranch")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("default_branch");
+
+                    b.Property<string>("InstructionFilePathsJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("instruction_file_paths_json");
+
+                    b.Property<DateTimeOffset?>("LastInspectedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_inspected_at");
+
+                    b.Property<string>("LastInspectedCommit")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("last_inspected_commit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("OwnerContactId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("owner_contact_id");
+
+                    b.Property<string>("Purpose")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("purpose");
+
+                    b.Property<string>("RemoteUrl")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("remote_url");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name");
+
+                    b.HasIndex("RemoteUrl")
+                        .IsUnique();
+
+                    b.ToTable("repositories", "orchestrator");
+                });
+
             modelBuilder.Entity("Orchestrator.Domain.Steps.Step", b =>
                 {
                     b.Property<Guid>("Id")
@@ -636,6 +708,56 @@ namespace Orchestrator.Infrastructure.Persistence.Migrations
                         });
 
                     b.Navigation("Limits")
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Orchestrator.Domain.Repositories.RepositoryProfile", b =>
+                {
+                    b.OwnsOne("Orchestrator.Domain.Repositories.BuildCommands", "BuildCommands", b1 =>
+                        {
+                            b1.Property<Guid>("RepositoryProfileId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("id");
+
+                            b1.Property<string>("Build")
+                                .HasMaxLength(500)
+                                .HasColumnType("character varying(500)")
+                                .HasColumnName("build");
+
+                            b1.Property<string>("Lint")
+                                .HasMaxLength(500)
+                                .HasColumnType("character varying(500)")
+                                .HasColumnName("lint");
+
+                            b1.Property<string>("Restore")
+                                .HasMaxLength(500)
+                                .HasColumnType("character varying(500)")
+                                .HasColumnName("restore");
+
+                            b1.Property<string>("Test")
+                                .HasMaxLength(500)
+                                .HasColumnType("character varying(500)")
+                                .HasColumnName("test");
+
+                            b1.Property<TimeSpan>("Timeout")
+                                .HasColumnType("interval")
+                                .HasColumnName("timeout");
+
+                            b1.Property<string>("WorkingDirectory")
+                                .IsRequired()
+                                .HasMaxLength(500)
+                                .HasColumnType("character varying(500)")
+                                .HasColumnName("working_directory");
+
+                            b1.HasKey("RepositoryProfileId");
+
+                            b1.ToTable("repositories", "orchestrator");
+
+                            b1.WithOwner()
+                                .HasForeignKey("RepositoryProfileId");
+                        });
+
+                    b.Navigation("BuildCommands")
                         .IsRequired();
                 });
 #pragma warning restore 612, 618

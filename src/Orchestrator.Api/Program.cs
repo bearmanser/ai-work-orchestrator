@@ -6,8 +6,10 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
 using Orchestrator.Api.Auth;
 using Orchestrator.Api.Dashboard;
+using Orchestrator.Api.Endpoints;
 using Orchestrator.Application.Identity;
 using Orchestrator.Application.Ports;
+using Orchestrator.Application.Repositories;
 using Orchestrator.Application.Steps;
 using Orchestrator.Infrastructure.Audit;
 using Orchestrator.Infrastructure.Identity;
@@ -50,6 +52,12 @@ builder.Services.AddScoped<OutboxDispatcher>(sp => new OutboxDispatcher(
     sp.GetRequiredService<TimeProvider>()));
 builder.Services.AddScoped<IAuditWriter, AuditWriter>();
 builder.Services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
+builder.Services.AddScoped<IRepositoryProfileStore, EfRepositoryProfileStore>();
+builder.Services.AddScoped<RepositoryCatalogService>();
+
+var gitCatalogOptions = new GitCatalogOptions();
+builder.Configuration.GetSection("Orchestrator:Git").Bind(gitCatalogOptions);
+builder.Services.AddSingleton(gitCatalogOptions);
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
@@ -84,11 +92,7 @@ app.UseMiddleware<CsrfMiddleware>();
 
 app.MapGet("/", () => "Hello World!");
 AuthEndpoints.Map(app);
-// Placeholder so /api/admin/* carries the AdminOnly policy before the real
-// admin surface (Tasks 44-48) exists. Authorized callers get 404; everyone
-// else gets 401/403 without learning anything about the surface.
-app.Map("/api/admin/{**catchAll}", () => Results.NotFound())
-    .RequireAuthorization(AdminOnly.PolicyName);
+RepositoryEndpoints.Map(app);
 app.UseHangfireDashboard("/hangfire", new DashboardOptions
 {
     Authorization = [new AdminOnlyDashboardFilter()],

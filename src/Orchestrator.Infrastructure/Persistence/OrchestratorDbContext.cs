@@ -8,6 +8,7 @@ using Orchestrator.Domain.Context;
 using Orchestrator.Domain.Evidence;
 using Orchestrator.Domain.Identity;
 using Orchestrator.Domain.Messaging;
+using Orchestrator.Domain.Repositories;
 using Orchestrator.Domain.Steps;
 using Orchestrator.Domain.Tasks;
 
@@ -26,6 +27,7 @@ public class OrchestratorDbContext(DbContextOptions<OrchestratorDbContext> optio
     public DbSet<Artifact> Artifacts => Set<Artifact>();
     public DbSet<ContextSnapshot> ContextSnapshots => Set<ContextSnapshot>();
     public DbSet<AdminAccount> AdminAccounts => Set<AdminAccount>();
+    public DbSet<RepositoryProfile> Repositories => Set<RepositoryProfile>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

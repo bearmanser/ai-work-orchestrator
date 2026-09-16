@@ -79,7 +79,9 @@ public class AuthEndpointTests(PostgresFixture fixture, OrchestratorApiFactory f
         OrchestratorApiFactory.ConnectionString = fixture.ConnectionString;
         using var client = factory.CreateClient();
 
-        var response = await client.GetAsync("/api/admin/tasks");
+        // /api/admin/tasks does not exist yet; repositories is the first real
+        // admin endpoint and carries the same AdminOnly policy.
+        var response = await client.GetAsync("/api/admin/repositories");
 
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
@@ -95,7 +97,8 @@ public class AuthEndpointTests(PostgresFixture fixture, OrchestratorApiFactory f
             new { loginName = "auth-magnus3", password = "a-long-enough-passphrase" });
         login.StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/admin/operations/pause-intake");
+        // A real unsafe endpoint: authenticated but missing the CSRF header.
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/admin/repositories");
         request.Headers.Add("Cookie", CookieHeader(login));
         // Deliberately no X-CSRF-Token header.
 

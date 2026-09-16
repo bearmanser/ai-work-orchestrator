@@ -12,6 +12,7 @@ using Orchestrator.Api.Webhooks;
 using Orchestrator.Application.Gateway;
 using Orchestrator.Application.Humans;
 using Orchestrator.Application.Identity;
+using Orchestrator.Application.Meetings;
 using Orchestrator.Application.Operations;
 using Orchestrator.Application.Policy;
 using Orchestrator.Application.Ports;
@@ -90,6 +91,10 @@ builder.Services.AddScoped<OwnershipDirectory>();
 builder.Services.AddScoped<ITaskIntakeStore, EfTaskIntakeStore>();
 builder.Services.AddScoped<IOperationalControls, EfOperationalControls>();
 builder.Services.AddScoped<TaskIntakeService>();
+builder.Services.AddSingleton<ITranscriptClassifier, TranscriptClassifier>();
+builder.Services.AddScoped<MeetingAssignmentService>();
+builder.Services.AddSingleton<IMeetingSegmentStore, InMemoryMeetingSegmentStore>();
+builder.Services.AddSingleton<IMeetingTaskStore, InMemoryMeetingTaskStore>();
 builder.Services.AddScoped<SlackEventStepHandler>();
 builder.Services.AddHttpClient<IChatGateway, SlackChatGateway>(client =>
     client.BaseAddress = new Uri("https://slack.com/api/"));
@@ -103,6 +108,10 @@ builder.Services.AddScoped<QuestionEscalationJob>();
 var taskIntakeOptions = new TaskIntakeOptions();
 builder.Configuration.GetSection("Orchestrator:Intake").Bind(taskIntakeOptions);
 builder.Services.AddSingleton(taskIntakeOptions);
+
+var meetingTranscriptOptions = new MeetingTranscriptOptions();
+builder.Configuration.GetSection("Orchestrator:Meetings").Bind(meetingTranscriptOptions);
+builder.Services.AddSingleton(meetingTranscriptOptions);
 
 var gitCatalogOptions = new GitCatalogOptions();
 builder.Configuration.GetSection("Orchestrator:Git").Bind(gitCatalogOptions);
@@ -144,6 +153,7 @@ AuthEndpoints.Map(app);
 RepositoryEndpoints.Map(app);
 DirectoryEndpoints.Map(app);
 RelationshipEndpoints.Map(app);
+TranscriptEndpoints.Map(app);
 AzureDevOpsWebhookEndpoint.Map(app);
 SlackWebhookEndpoint.Map(app);
 app.UseHangfireDashboard("/hangfire", new DashboardOptions

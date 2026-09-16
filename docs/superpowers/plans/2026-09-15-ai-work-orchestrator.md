@@ -2787,7 +2787,7 @@ git commit -m "feat: add immutable authorization envelope with expiry and revoca
 - Produces:
   - `PolicyDecision` = `abstract record` with `Permit(string reason)`, `Deny(string reason)`, `RequireApproval(string reason, string approvalKind)`.
   - `PolicyEngine.EvaluateAsync(PolicyRequest request, CancellationToken)` → `Task<PolicyDecision>`, where
-    `PolicyRequest = record(Guid TaskId, string Actor, ActionKind Action, ResourceScope Resource, AuthorizationEnvelope Envelope, BudgetLedger Budget, DateTimeOffset Now)`.
+    `PolicyRequest = record(Guid TaskId, string Actor, ActionKind Action, ResourceScope Resource, AuthorizationEnvelope Envelope, BudgetLedger Budget, DateTimeOffset Now, string CorrelationId)`. `CorrelationId` is supplied by the caller and is **required**, not defaulted — the engine must never mint its own, because an id unique to each evaluation cannot tie a decision back to the operation that caused it. Task 16's `ToolGateway` passes its `OperationId` down here.
   - Every decision writes an audit entry before returning. This is the only place `ActionKind` is turned into an allow/deny, and the `ToolGateway` (Task 16) is the only caller permitted to act on a `Permit`.
 
 - [ ] **Step 1: Write the failing tests**

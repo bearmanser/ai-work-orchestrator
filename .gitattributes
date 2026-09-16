@@ -1,2 +1,12 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# `dotnet ef migrations add` (and other CS-generating tooling) writes UTF-8-BOM,
+# CRLF output on Windows regardless of the repo's .editorconfig (end_of_line = lf).
+# Force LF line endings for all C# source - including generated migrations - so the
+# working tree and the committed blob always agree, instead of requiring a manual
+# CRLF/BOM cleanup pass (as happened for the audit-log migration) after every
+# `dotnet ef migrations add`. Note this normalizes the git-stored blob and future
+# checkouts; a just-generated, not-yet-added file can still be CRLF on disk until
+# `dotnet format` or `git add --renormalize` runs on it.
+*.cs text eol=lf

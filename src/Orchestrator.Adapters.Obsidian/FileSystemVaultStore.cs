@@ -269,12 +269,18 @@ public sealed class FileSystemVaultStore
 
     /// <summary>
     /// Copies the just-written note into the revisions directory. The revision id
-    /// sorts chronologically and the file timestamp carries the vault clock time.
+    /// embeds the unix time plus a process-wide monotonic sequence so filenames
+    /// sort chronologically even when two writes land in the same second (a GUID
+    /// suffix alone would order same-second snapshots randomly); the GUID keeps
+    /// ids unique and the file timestamp carries the vault clock time.
     /// </summary>
+    private static long _revisionSequence;
+
     private void SnapshotRevision(string relativePath)
     {
         var now = _clock.GetUtcNow();
-        var revisionId = $"{now.ToUnixTimeSeconds():D11}-{Guid.NewGuid():N}";
+        var sequence = Interlocked.Increment(ref _revisionSequence);
+        var revisionId = $"{now.ToUnixTimeSeconds():D11}-{sequence:D10}-{Guid.NewGuid():N}";
         var directory = RevisionDirectory(relativePath);
         Directory.CreateDirectory(directory);
 

@@ -71,6 +71,25 @@ public class LeaseManagerTests(PostgresFixture fixture)
             .HeartbeatAsync(stepId, "worker-2", TimeSpan.FromMinutes(5), default)).ShouldBeFalse();
     }
 
+    [Fact]
+    public async Task TryAcquire_BySameOwner_Reacquires()
+    {
+        var stepId = await SeedStepAsync();
+        await new LeaseManager(fixture.NewDbContext(), _clock)
+            .TryAcquireAsync(stepId, "worker-1", TimeSpan.FromMinutes(5), default);
+
+        // Same owner re-acquiring before expiry (e.g. after a crash-restart that lost
+        // in-memory heartbeat state) must succeed - this is the third race property
+        // the lease SQL's "OR lease_owner = {ownerId}" branch exists for.
+        _clock.Advance(TimeSpan.FromMinutes(1));
+        (await new LeaseManager(fixture.NewDbContext(), _clock)
+            .TryAcquireAsync(stepId, "worker-1", TimeSpan.FromMinutes(5), default)).ShouldBeTrue();
+
+        // And it must still exclude a different worker while the reacquired lease is live.
+        (await new LeaseManager(fixture.NewDbContext(), _clock)
+            .TryAcquireAsync(stepId, "worker-2", TimeSpan.FromMinutes(5), default)).ShouldBeFalse();
+    }
+
     private async Task<Guid> SeedStepAsync()
     {
         await using var db = fixture.NewDbContext();

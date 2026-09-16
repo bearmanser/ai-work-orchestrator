@@ -81,6 +81,28 @@ public sealed class SecretStoreTests : IDisposable
     public void SecretRef_InvalidKey_Throws(string key) =>
         Should.Throw<ArgumentException>(() => new SecretRef(key));
 
+    [Theory]
+    [InlineData("con")]
+    [InlineData("CON")]
+    [InlineData("con.txt")]
+    [InlineData("nul")]
+    [InlineData("nul.pem")]
+    [InlineData("aux")]
+    [InlineData("prn")]
+    [InlineData("com1")]
+    [InlineData("com9")]
+    [InlineData("lpt1")]
+    [InlineData("lpt9")]
+    public void SecretRef_WindowsReservedDeviceName_Throws(string key) =>
+        Should.Throw<ArgumentException>(() => new SecretRef(key));
+
+    [Theory]
+    [InlineData("console")]
+    [InlineData("com10")]
+    [InlineData("nullable-config")]
+    public void SecretRef_KeyThatOnlyContainsADeviceName_IsAccepted(string key) =>
+        Should.NotThrow(() => new SecretRef(key));
+
     [Fact]
     public async Task EnvironmentSecretStore_MapsKeyToConventionalVariableName()
     {

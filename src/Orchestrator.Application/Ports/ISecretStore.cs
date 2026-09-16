@@ -8,12 +8,30 @@ namespace Orchestrator.Application.Ports;
 /// </summary>
 public readonly partial record struct SecretRef
 {
+    private static readonly HashSet<string> ReservedDeviceNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "con", "prn", "aux", "nul",
+        "com1", "com2", "com3", "com4", "com5", "com6", "com7", "com8", "com9",
+        "lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8", "lpt9",
+    };
+
     public SecretRef(string key)
     {
         if (string.IsNullOrEmpty(key) || !KeyPattern().IsMatch(key))
         {
             throw new ArgumentException(
                 $"'{key}' is not a valid secret key. Keys must match ^[a-z0-9][a-z0-9._-]{{2,99}}$.",
+                nameof(key));
+        }
+
+        // The regex alone admits Windows reserved device names (con, nul, com1, ...), bare or
+        // with an extension, which resolve to devices rather than files on Windows and would make
+        // FileSecretStore behave unpredictably instead of cleanly reporting "not found".
+        var stem = key[..(key.IndexOf('.') is var dot && dot >= 0 ? dot : key.Length)];
+        if (ReservedDeviceNames.Contains(stem))
+        {
+            throw new ArgumentException(
+                $"'{key}' is a Windows reserved device name and cannot be used as a secret key.",
                 nameof(key));
         }
 

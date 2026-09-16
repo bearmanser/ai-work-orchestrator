@@ -2,6 +2,7 @@ using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Orchestrator.Domain.Audit;
+using Orchestrator.Domain.Authorization;
 using Orchestrator.Domain.Budgets;
 using Orchestrator.Domain.Messaging;
 using Orchestrator.Domain.Steps;
@@ -18,6 +19,7 @@ public class OrchestratorDbContext(DbContextOptions<OrchestratorDbContext> optio
     public DbSet<Step> Steps => Set<Step>();
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
     public DbSet<BudgetLedger> Budgets => Set<BudgetLedger>();
+    public DbSet<AuthorizationEnvelope> AuthorizationEnvelopes => Set<AuthorizationEnvelope>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -4,6 +4,8 @@ using Microsoft.EntityFrameworkCore.Metadata;
 using Orchestrator.Domain.Audit;
 using Orchestrator.Domain.Authorization;
 using Orchestrator.Domain.Budgets;
+using Orchestrator.Domain.Context;
+using Orchestrator.Domain.Evidence;
 using Orchestrator.Domain.Messaging;
 using Orchestrator.Domain.Steps;
 using Orchestrator.Domain.Tasks;
@@ -20,6 +22,8 @@ public class OrchestratorDbContext(DbContextOptions<OrchestratorDbContext> optio
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
     public DbSet<BudgetLedger> Budgets => Set<BudgetLedger>();
     public DbSet<AuthorizationEnvelope> AuthorizationEnvelopes => Set<AuthorizationEnvelope>();
+    public DbSet<Artifact> Artifacts => Set<Artifact>();
+    public DbSet<ContextSnapshot> ContextSnapshots => Set<ContextSnapshot>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

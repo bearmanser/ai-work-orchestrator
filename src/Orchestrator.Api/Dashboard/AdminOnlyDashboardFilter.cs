@@ -2,8 +2,10 @@ using Hangfire.Dashboard;
 
 namespace Orchestrator.Api.Dashboard;
 
-/// <summary>Denies all dashboard access until Task 12 wires real administrator auth.</summary>
+/// <summary>Allows Hangfire dashboard access only to signed-in administrators.</summary>
 public sealed class AdminOnlyDashboardFilter : IDashboardAuthorizationFilter
 {
-    public bool Authorize(DashboardContext context) => false;
+    public bool Authorize(DashboardContext context) =>
+        context.GetHttpContext().User.Identity?.IsAuthenticated is true
+        && context.GetHttpContext().User.HasClaim("admin", "true");
 }

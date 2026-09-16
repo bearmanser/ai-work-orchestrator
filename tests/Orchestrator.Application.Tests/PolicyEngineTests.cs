@@ -31,7 +31,7 @@ public class PolicyEngineTests
     private static BudgetLedger Ledger() => new(TaskId, new BudgetLimits(100m, TimeSpan.FromHours(1), 10, 10));
 
     private static PolicyRequest Request(ActionKind action, ResourceScope resource) => new(
-        TaskId, "requester@kameleongruppen.no", action, resource, Envelope(), Ledger(), Now);
+        TaskId, "requester@kameleongruppen.no", action, resource, Envelope(), Ledger(), Now, "corr-test-1");
 
     private static PolicyEngine Engine() => new(new RecordingAuditWriter(), PolicyRules.Default);
 
@@ -93,6 +93,20 @@ public class PolicyEngineTests
             Request(ActionKind.RepositoryRead, ResourceScope.Repository(RepoA, "main")), default);
         audit.Entries.Count.ShouldBe(1);
         audit.Entries[0].Action.ShouldBe("policy.evaluate");
+    }
+
+    [Fact]
+    public async Task Evaluate_AuditEntry_CarriesCallerSuppliedCorrelationId()
+    {
+        var audit = new RecordingAuditWriter();
+        var request = Request(ActionKind.RepositoryRead, ResourceScope.Repository(RepoA, "main"))
+            with
+        { CorrelationId = "caller-supplied-correlation-id" };
+
+        await new PolicyEngine(audit, PolicyRules.Default).EvaluateAsync(request, default);
+
+        audit.Entries.Count.ShouldBe(1);
+        audit.Entries[0].CorrelationId.ShouldBe("caller-supplied-correlation-id");
     }
 
     [Fact]

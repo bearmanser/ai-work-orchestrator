@@ -15,7 +15,18 @@ public sealed record PolicyRequest(
     ResourceScope Resource,
     AuthorizationEnvelope Envelope,
     BudgetLedger Budget,
-    DateTimeOffset Now);
+    DateTimeOffset Now,
+    string CorrelationId)
+{
+    /// <summary>
+    /// Required, not defaulted: a caller that forgets to supply a correlation id must
+    /// fail to compile a meaningful request rather than silently get an id nobody else
+    /// can tie back to the triggering operation.
+    /// </summary>
+    public string CorrelationId { get; init; } = string.IsNullOrWhiteSpace(CorrelationId)
+        ? throw new ArgumentException("A correlation id is required.", nameof(CorrelationId))
+        : CorrelationId;
+}
 
 /// <summary>
 /// The single place an action, actor, resource and envelope become an allow/deny/
@@ -57,7 +68,7 @@ public sealed class PolicyEngine(IAuditWriter auditWriter, PolicyRules rules)
             Action: AuditAction,
             Reason: ReasonOf(decision),
             Outcome: decision.GetType().Name,
-            CorrelationId: Guid.CreateVersion7().ToString(),
+            CorrelationId: request.CorrelationId,
             Details: new Dictionary<string, string> { ["action"] = request.Action.ToString() }), ct);
 
         return decision;

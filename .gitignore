@@ -17,7 +17,7 @@ admin/coverage/
 # Local environment
 .env
 .env.local
-secrets/
+/secrets/
 
 # Parallel task worktrees
 .worktrees/

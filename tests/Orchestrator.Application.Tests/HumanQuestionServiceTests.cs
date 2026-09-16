@@ -8,6 +8,7 @@ using Orchestrator.Domain.Authorization;
 using Orchestrator.Domain.Budgets;
 using Orchestrator.Domain.Humans;
 using Orchestrator.Domain.Identity;
+using Orchestrator.Domain.Operations;
 using Orchestrator.Domain.Tasks;
 using Shouldly;
 
@@ -425,5 +426,10 @@ public class HumanQuestionServiceTests
 
         public TResult? Deserialize<TResult>(ToolCallRecord record) =>
             record.ResultJson is null ? default : JsonSerializer.Deserialize<TResult>(record.ResultJson);
+
+        public Task<bool> HasUnknownOutcomesAsync(Guid taskId, CancellationToken ct)
+        {
+            return Task.FromResult(_records.Any(r => r.TaskId == taskId && r.Outcome == ToolCallOutcome.Unknown));
+        }
     }
 }

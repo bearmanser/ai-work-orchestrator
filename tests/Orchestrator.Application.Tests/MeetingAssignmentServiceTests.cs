@@ -304,6 +304,20 @@ public sealed class MeetingAssignmentServiceTests
         public Task ResumeIntakeAsync(string actor, CancellationToken ct) => throw new NotSupportedException();
 
         public Task<bool> IsIntakePausedAsync(CancellationToken ct) => Task.FromResult(false);
+
+        public Task DisableIntegrationAsync(string name, string actor, CancellationToken ct) => throw new NotSupportedException();
+
+        public Task EnableIntegrationAsync(string name, string actor, CancellationToken ct) => throw new NotSupportedException();
+
+        public Task<bool> IsIntegrationDisabledAsync(string name, CancellationToken ct) => Task.FromResult(false);
+
+        public Task CancelTaskAsync(Guid taskId, string actor, CancellationToken ct) => throw new NotSupportedException();
+
+        public Task RevokeAuthorizationAsync(Guid taskId, string actor, CancellationToken ct) => throw new NotSupportedException();
+
+        public Task RetryStepAsync(Guid taskId, Guid stepId, string actor, CancellationToken ct) => throw new NotSupportedException();
+
+        public Task ReconcileTaskAsync(Guid taskId, string actor, CancellationToken ct) => throw new NotSupportedException();
     }
 
     private sealed class RecordingAuditWriter : IAuditWriter

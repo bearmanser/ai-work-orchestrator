@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Orchestrator.Domain.Authorization;
+using Orchestrator.Domain.Operations;
 
 namespace Orchestrator.Application.Gateway;
 
@@ -64,4 +65,13 @@ public sealed class InMemoryToolCallStore : IToolCallStore
 
     public TResult? Deserialize<TResult>(ToolCallRecord record) =>
         record.ResultJson is null ? default : JsonSerializer.Deserialize<TResult>(record.ResultJson);
+
+    public Task<bool> HasUnknownOutcomesAsync(Guid taskId, CancellationToken ct)
+    {
+        lock (_gate)
+        {
+            var hasUnknown = _records.Values.Any(r => r.TaskId == taskId && r.Outcome == ToolCallOutcome.Unknown);
+            return Task.FromResult(hasUnknown);
+        }
+    }
 }

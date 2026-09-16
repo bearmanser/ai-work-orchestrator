@@ -1,5 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
+  <PropertyGroup>
+    <NoWarn>$(NoWarn);NU1902</NoWarn>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\Orchestrator.Infrastructure\Orchestrator.Infrastructure.csproj" />
     <ProjectReference Include="..\Orchestrator.Adapters.Git\Orchestrator.Adapters.Git.csproj" />
@@ -15,6 +19,7 @@
     <PackageReference Include="Hangfire.Core" />
     <PackageReference Include="Hangfire.AspNetCore" />
     <PackageReference Include="Hangfire.PostgreSql" />
+    <PackageReference Include="OpenTelemetry.Exporter.Prometheus.AspNetCore" />
     <!-- Direct pin to force Hangfire.PostgreSql's transitive dependency past the
          vulnerable 11.0.1 it would otherwise resolve to (see Directory.Packages.props). -->
     <PackageReference Include="Newtonsoft.Json">

@@ -4,6 +4,7 @@ using Orchestrator.Application.Policy;
 using Orchestrator.Application.Ports;
 using Orchestrator.Domain.Authorization;
 using Orchestrator.Domain.Budgets;
+using Orchestrator.Domain.Operations;
 using Shouldly;
 
 namespace Orchestrator.Application.Tests;
@@ -178,6 +179,11 @@ public class ToolGatewayTests
         public TResult? Deserialize<TResult>(ToolCallRecord record)
         {
             return record.ResultJson is null ? default : JsonSerializer.Deserialize<TResult>(record.ResultJson);
+        }
+
+        public Task<bool> HasUnknownOutcomesAsync(Guid taskId, CancellationToken ct)
+        {
+            return Task.FromResult(Records.Any(r => r.TaskId == taskId && r.Outcome == ToolCallOutcome.Unknown));
         }
     }
 }

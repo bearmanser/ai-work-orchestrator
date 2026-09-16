@@ -1,31 +1,7 @@
 using Orchestrator.Domain.Authorization;
+using Orchestrator.Domain.Operations;
 
 namespace Orchestrator.Application.Gateway;
-
-/// <summary>
-/// The persisted state of one idempotent tool call. Intent is recorded before
-/// invoking; a crash between intent and outcome leaves <see cref="Unknown"/>.
-/// </summary>
-public enum ToolCallOutcome
-{
-    Unknown,
-    Succeeded,
-}
-
-/// <summary>
-/// One persisted tool-call intent plus its outcome, if known.
-/// </summary>
-public sealed record ToolCallRecord(
-    Guid Id,
-    Guid TaskId,
-    Guid StepId,
-    string OperationId,
-    string IdempotencyKey,
-    ToolCallOutcome Outcome,
-    PolicyDecision Decision,
-    string? ResultJson,
-    DateTimeOffset RecordedAt,
-    DateTimeOffset? CompletedAt);
 
 /// <summary>
 /// Persistence for tool-call intents and outcomes, keyed by idempotency key.
@@ -39,6 +15,8 @@ public interface IToolCallStore
     Task RecordSuccessAsync<TResult>(Guid recordId, TResult? value, DateTimeOffset now, CancellationToken ct);
 
     TResult? Deserialize<TResult>(ToolCallRecord record);
+
+    Task<bool> HasUnknownOutcomesAsync(Guid taskId, CancellationToken ct);
 }
 
 /// <summary>

@@ -1,9 +1,11 @@
+using System.Diagnostics.Metrics;
 using System.Text.Json;
 using Hangfire;
 using Hangfire.Dashboard;
 using Hangfire.PostgreSql;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
+using OpenTelemetry.Metrics;
 using Orchestrator.Adapters.Slack;
 using Orchestrator.Api.Auth;
 using Orchestrator.Api.Dashboard;
@@ -27,6 +29,7 @@ using Orchestrator.Infrastructure.Operations;
 using Orchestrator.Infrastructure.Outbox;
 using Orchestrator.Infrastructure.Persistence;
 using Orchestrator.Infrastructure.Secrets;
+using Orchestrator.Infrastructure.Telemetry;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -75,7 +78,10 @@ builder.Services.AddScoped<OutboxDispatcher>(sp => new OutboxDispatcher(
 builder.Services.AddScoped<IAuditWriter, AuditWriter>();
 builder.Services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
 builder.Services.AddSingleton(PolicyRules.Default);
-builder.Services.AddScoped<PolicyEngine>();
+builder.Services.AddScoped<PolicyEngine>(sp => new PolicyEngine(
+    sp.GetRequiredService<IAuditWriter>(),
+    PolicyRules.Default,
+    sp.GetRequiredService<IOperationalControls>()));
 builder.Services.AddSingleton<IToolCallStore, InMemoryToolCallStore>();
 builder.Services.AddScoped<IToolGateway, ToolGateway>();
 builder.Services.AddScoped<IRepositoryProfileStore, EfRepositoryProfileStore>();
@@ -90,6 +96,7 @@ builder.Services.AddScoped<IdentityResolver>();
 builder.Services.AddScoped<OwnershipDirectory>();
 builder.Services.AddScoped<ITaskIntakeStore, EfTaskIntakeStore>();
 builder.Services.AddScoped<IOperationalControls, EfOperationalControls>();
+builder.Services.AddScoped<OperationalControlService>();
 builder.Services.AddScoped<TaskIntakeService>();
 builder.Services.AddSingleton<ITranscriptClassifier, TranscriptClassifier>();
 builder.Services.AddScoped<MeetingAssignmentService>();
@@ -116,6 +123,12 @@ builder.Services.AddSingleton(meetingTranscriptOptions);
 var gitCatalogOptions = new GitCatalogOptions();
 builder.Configuration.GetSection("Orchestrator:Git").Bind(gitCatalogOptions);
 builder.Services.AddSingleton(gitCatalogOptions);
+
+// OpenTelemetry metrics
+builder.Services.AddOpenTelemetry()
+    .WithMetrics(metrics => metrics
+        .AddMeter(OrchestratorMetrics.MeterName)
+        .AddPrometheusExporter());
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
@@ -147,6 +160,7 @@ var app = builder.Build();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseMiddleware<CsrfMiddleware>();
+app.MapPrometheusScrapingEndpoint();
 
 app.MapGet("/", () => "Hello World!");
 AuthEndpoints.Map(app);
@@ -154,6 +168,8 @@ RepositoryEndpoints.Map(app);
 DirectoryEndpoints.Map(app);
 RelationshipEndpoints.Map(app);
 TranscriptEndpoints.Map(app);
+OperationsEndpoints.Map(app);
+TaskOperationsEndpoints.Map(app);
 AzureDevOpsWebhookEndpoint.Map(app);
 SlackWebhookEndpoint.Map(app);
 app.UseHangfireDashboard("/hangfire", new DashboardOptions

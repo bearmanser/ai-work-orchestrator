@@ -34,6 +34,7 @@ public class OrchestratorDbContext(DbContextOptions<OrchestratorDbContext> optio
     public DbSet<RepositoryRelationship> Relationships => Set<RepositoryRelationship>();
     public DbSet<Workspace> Workspaces => Set<Workspace>();
     public DbSet<HumanQuestion> HumanQuestions => Set<HumanQuestion>();
+    public DbSet<ToolCallRecord> ToolCallRecords => Set<ToolCallRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

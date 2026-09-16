@@ -21,6 +21,7 @@
     <PackageVersion Include="NSubstitute" Version="5.3.0" />
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.0" />
     <PackageVersion Include="coverlet.collector" Version="6.0.4" />
+    <PackageVersion Include="OpenTelemetry.Exporter.Prometheus.AspNetCore" Version="1.11.0-beta.1" />
     <!-- Transitive-only pins to clear NuGetAudit advisories: neither package is used directly,
          but each is pulled in below its patched version by a package we do reference. -->
     <PackageVersion Include="System.Security.Cryptography.Xml" Version="10.0.12" />

@@ -83,4 +83,84 @@ public class AuthorizationEnvelopeTests
     [Fact]
     public void Covers_ContactingUnlistedPerson_IsFalse() =>
         Envelope().Covers(ActionKind.ContactPerson, ResourceScope.Person("U9"), Now).ShouldBeFalse();
+
+    // --- Fix round 1: a read-only repository grant must not cover any action that
+    // mutates the repository, even one that "only" adds a comment. ---
+
+    private static AuthorizationEnvelope ReadOnlyEnvelope() => new(
+        taskId: Guid.CreateVersion7(),
+        requesterId: "U1",
+        repositories: [new RepositoryScope(RepoA, ["main", "feature/*"], ["src/"], RepositoryAccess.Read)],
+        p1Environments: ["staging"],
+        p1Companies: ["KAMELEON-TEST"],
+        allowedProviders: ["claude"],
+        allowedStages: [AgentStage.Planning, AgentStage.Implementation],
+        slackChannels: ["C0ENG"],
+        contactablePeople: ["U2"],
+        vaultPathPrefixes: ["Projects/Orchestrator/"],
+        networkDestinations: ["api.anthropic.com"],
+        budget: new BudgetLimits(20m, TimeSpan.FromHours(4), 8, 3),
+        expiresAt: Now.AddDays(7),
+        createdAt: Now);
+
+    [Fact]
+    public void Covers_ReadOnlyRepository_DoesNotCoverRepositoryWrite() =>
+        ReadOnlyEnvelope().Covers(ActionKind.RepositoryWrite,
+            ResourceScope.Repository(RepoA, "main"), Now).ShouldBeFalse();
+
+    [Fact]
+    public void Covers_ReadOnlyRepository_DoesNotCoverPullRequestCreate() =>
+        ReadOnlyEnvelope().Covers(ActionKind.PullRequestCreate,
+            ResourceScope.Repository(RepoA, "main"), Now).ShouldBeFalse();
+
+    [Fact]
+    public void Covers_ReadOnlyRepository_DoesNotCoverPullRequestComment() =>
+        ReadOnlyEnvelope().Covers(ActionKind.PullRequestComment,
+            ResourceScope.Repository(RepoA, "main"), Now).ShouldBeFalse();
+
+    [Fact]
+    public void Covers_ReadOnlyRepository_StillCoversRepositoryRead() =>
+        ReadOnlyEnvelope().Covers(ActionKind.RepositoryRead,
+            ResourceScope.Repository(RepoA, "main"), Now).ShouldBeTrue();
+
+    // --- Fix round 1: IReadOnlyList<T> is only a view. A caller holding the original
+    // List<T> it passed into the constructor must not be able to mutate the envelope
+    // by mutating that list afterwards. ---
+
+    [Fact]
+    public void Constructor_MutatingCallersOriginalList_DoesNotAffectCoversDecision()
+    {
+        var repoId = Guid.CreateVersion7();
+        var branches = new List<string> { "main" };
+        var repositories = new List<RepositoryScope>
+        {
+            new(repoId, branches, ["src/"], RepositoryAccess.Write),
+        };
+
+        var envelope = new AuthorizationEnvelope(
+            taskId: Guid.CreateVersion7(),
+            requesterId: "U1",
+            repositories: repositories,
+            p1Environments: [],
+            p1Companies: [],
+            allowedProviders: [],
+            allowedStages: [],
+            slackChannels: [],
+            contactablePeople: [],
+            vaultPathPrefixes: [],
+            networkDestinations: [],
+            budget: new BudgetLimits(1m, TimeSpan.FromHours(1), 1, 1),
+            expiresAt: Now.AddDays(1),
+            createdAt: Now);
+
+        // Mutate the caller's own references after the envelope was built: add a
+        // branch to the nested list, and add a whole new repository scope to the
+        // top-level list.
+        branches.Add("feature/*");
+        repositories.Add(new RepositoryScope(Guid.CreateVersion7(), ["*"], [], RepositoryAccess.Write));
+
+        envelope.Repositories.Count.ShouldBe(1);
+        envelope.Covers(ActionKind.RepositoryWrite,
+            ResourceScope.Repository(repoId, "feature/orders"), Now).ShouldBeFalse();
+    }
 }

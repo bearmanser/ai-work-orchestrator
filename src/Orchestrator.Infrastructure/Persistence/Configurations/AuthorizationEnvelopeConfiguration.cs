@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
@@ -15,6 +16,11 @@ public sealed class AuthorizationEnvelopeConfiguration : IEntityTypeConfiguratio
         b.ToTable("authorization_envelopes");
         b.HasKey(e => e.Id);
         b.Property(e => e.Id).ValueGeneratedNever();
+
+        // Deliberately not unique: an envelope is immutable and widening requires a
+        // brand new one minted by an approval rather than mutating this one, so a task
+        // legitimately accumulates several envelopes over its life. A unique index here
+        // would forbid exactly the flow the design mandates - do not add one.
         b.HasIndex(e => e.TaskId);
 
         b.Property(e => e.RequesterId).HasMaxLength(200).IsRequired();
@@ -30,14 +36,22 @@ public sealed class AuthorizationEnvelopeConfiguration : IEntityTypeConfiguratio
         b.Property(e => e.AllowedStages)
             .HasConversion(
                 stages => JsonSerializer.Serialize(stages, JsonOptions),
-                json => JsonSerializer.Deserialize<List<AgentStage>>(json, JsonOptions) ?? new List<AgentStage>())
+                json => (JsonSerializer.Deserialize<List<AgentStage>>(json, JsonOptions) ?? new List<AgentStage>())
+                    .ToImmutableList())
             .Metadata.SetValueComparer(ListComparer<AgentStage>());
         b.Property(e => e.AllowedStages).HasColumnType("jsonb");
 
+        // System.Text.Json materialises each IReadOnlyList<T>-typed property (here, and
+        // on the nested RepositoryScope.Branches/PathPrefixes) as a plain mutable
+        // List<T>, so the deserialised value is converted through RepositoryScope's own
+        // AsImmutable() the same way the constructor does - otherwise a round-tripped
+        // envelope would come back with a nested list a caller could mutate in place.
         b.Property(e => e.Repositories)
             .HasConversion(
                 repos => JsonSerializer.Serialize(repos, JsonOptions),
-                json => JsonSerializer.Deserialize<List<RepositoryScope>>(json, JsonOptions) ?? new List<RepositoryScope>())
+                json => (JsonSerializer.Deserialize<List<RepositoryScope>>(json, JsonOptions) ?? new List<RepositoryScope>())
+                    .Select(r => r.AsImmutable())
+                    .ToImmutableList())
             .Metadata.SetValueComparer(ListComparer<RepositoryScope>());
         b.Property(e => e.Repositories).HasColumnType("jsonb");
 
@@ -63,7 +77,8 @@ public sealed class AuthorizationEnvelopeConfiguration : IEntityTypeConfiguratio
     {
         property.HasConversion(
             list => JsonSerializer.Serialize(list, JsonOptions),
-            json => JsonSerializer.Deserialize<List<string>>(json, JsonOptions) ?? new List<string>());
+            json => (JsonSerializer.Deserialize<List<string>>(json, JsonOptions) ?? new List<string>())
+                .ToImmutableList());
         property.Metadata.SetValueComparer(ListComparer<string>());
         property.HasColumnType("jsonb");
     }

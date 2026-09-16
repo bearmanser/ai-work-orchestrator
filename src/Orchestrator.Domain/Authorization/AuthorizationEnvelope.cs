@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Orchestrator.Domain.Budgets;
 
 namespace Orchestrator.Domain.Authorization;
@@ -17,7 +18,23 @@ public sealed record RepositoryScope(
     Guid RepositoryId,
     IReadOnlyList<string> Branches,
     IReadOnlyList<string> PathPrefixes,
-    RepositoryAccess Access);
+    RepositoryAccess Access)
+{
+    /// <summary>
+    /// Returns a copy with <see cref="Branches"/> and <see cref="PathPrefixes"/> backed
+    /// by an immutable collection, so a caller cannot reach past the envelope's own
+    /// defensive copy by mutating the lists nested one level inside a
+    /// <see cref="RepositoryScope"/>. Used by both the constructor and the EF
+    /// deserialization path, since System.Text.Json materialises an
+    /// <see cref="IReadOnlyList{T}"/>-typed property as a plain mutable
+    /// <see cref="List{T}"/>.
+    /// </summary>
+    public RepositoryScope AsImmutable() => this with
+    {
+        Branches = Branches.ToImmutableList(),
+        PathPrefixes = PathPrefixes.ToImmutableList(),
+    };
+}
 
 /// <summary>
 /// The machine-enforced boundary of a whole task. Every side effect the agent loop can
@@ -70,15 +87,23 @@ public sealed class AuthorizationEnvelope
         Id = Guid.CreateVersion7();
         TaskId = taskId;
         RequesterId = requesterId;
-        Repositories = repositories;
-        P1Environments = p1Environments;
-        P1Companies = p1Companies;
-        AllowedProviders = allowedProviders;
-        AllowedStages = allowedStages;
-        SlackChannels = slackChannels;
-        ContactablePeople = contactablePeople;
-        VaultPathPrefixes = vaultPathPrefixes;
-        NetworkDestinations = networkDestinations;
+        // Defensive copies into an immutable collection type at the one entry point a
+        // caller controls: IReadOnlyList<T> is only a read-only *view* of whatever list
+        // was passed in, so without this a caller holding the original List<T>
+        // reference (or one who casts the property back to List<T>) could mutate the
+        // envelope in place after construction - the exact widening path Revoke is
+        // supposed to be the only way to reach. Each RepositoryScope's own Branches and
+        // PathPrefixes get the same treatment so the loophole can't be reached one
+        // level down either.
+        Repositories = repositories.Select(r => r.AsImmutable()).ToImmutableList();
+        P1Environments = p1Environments.ToImmutableList();
+        P1Companies = p1Companies.ToImmutableList();
+        AllowedProviders = allowedProviders.ToImmutableList();
+        AllowedStages = allowedStages.ToImmutableList();
+        SlackChannels = slackChannels.ToImmutableList();
+        ContactablePeople = contactablePeople.ToImmutableList();
+        VaultPathPrefixes = vaultPathPrefixes.ToImmutableList();
+        NetworkDestinations = networkDestinations.ToImmutableList();
         Budget = budget;
         ExpiresAt = expiresAt.ToUniversalTime();
         RevokedAt = null;
@@ -139,14 +164,39 @@ public sealed class AuthorizationEnvelope
             (ActionKind.RepositoryRead, ResourceScope.RepositoryResource r) => CoversRepository(r, RepositoryAccess.Read),
             (ActionKind.RepositoryWrite, ResourceScope.RepositoryResource r) => CoversRepository(r, RepositoryAccess.Write),
             (ActionKind.PullRequestCreate, ResourceScope.RepositoryResource r) => CoversRepository(r, RepositoryAccess.Write),
-            (ActionKind.PullRequestComment, ResourceScope.RepositoryResource r) => CoversRepository(r, RepositoryAccess.Read),
+            // A PR comment mutates remote state - it's visible to reviewers, can
+            // trigger notifications and automation, and is itself task input that
+            // later feeds back into the workflow - so it requires Write, same as
+            // RepositoryWrite and PullRequestCreate. Of the four repository-resource
+            // actions, RepositoryRead is the only one that is genuinely read-only.
+            (ActionKind.PullRequestComment, ResourceScope.RepositoryResource r) => CoversRepository(r, RepositoryAccess.Write),
+            // DomainRead/DomainWrite: the brief's field list gives P1 exactly one axis
+            // of scope - P1Environments x P1Companies - with no separate read/write
+            // grant, unlike RepositoryScope's explicit RepositoryAccess. DomainWrite
+            // does change state outside this process (it writes to a P1 domain), but
+            // there is no narrower list this envelope type could check it against
+            // without inventing a field the brief does not define; membership in the
+            // same environment/company scope is the only - and therefore the most
+            // restrictive available - gate for both.
             (ActionKind.DomainRead, ResourceScope.P1Resource p) => CoversP1(p),
             (ActionKind.DomainWrite, ResourceScope.P1Resource p) => CoversP1(p),
             (ActionKind.AgentInvoke, ResourceScope.AgentResource a) => CoversAgent(a),
+            // ContactPerson and PostMessage both change state outside this process (a
+            // person is messaged, a channel receives a post) but the brief models each
+            // as a flat allow-list (ContactablePeople, SlackChannels) with no separate
+            // read variant to compare against - list membership is already the
+            // strictest available check.
             (ActionKind.ContactPerson, ResourceScope.PersonResource person) => ContactablePeople.Contains(person.PersonId),
             (ActionKind.PostMessage, ResourceScope.ChannelResource c) => SlackChannels.Contains(c.ChannelId),
+            // MemoryRead/MemoryWrite: same shape as the P1 case - VaultPathPrefixes is
+            // a single list with no separate write-scope field, so a MemoryWrite is
+            // gated by the same prefix membership as MemoryRead; that is the strictest
+            // check the brief's field list allows without inventing a new field.
             (ActionKind.MemoryRead, ResourceScope.VaultResource v) => CoversVaultPath(v),
             (ActionKind.MemoryWrite, ResourceScope.VaultResource v) => CoversVaultPath(v),
+            // NetworkEgress changes state outside this process (a network call is
+            // made) and is gated by NetworkDestinations, the only list the brief gives
+            // this resource kind.
             (ActionKind.NetworkEgress, ResourceScope.HostResource h) =>
                 NetworkDestinations.Contains(h.Host, StringComparer.OrdinalIgnoreCase),
             _ => false,

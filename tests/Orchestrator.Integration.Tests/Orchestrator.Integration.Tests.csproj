@@ -2,6 +2,10 @@
 
   <PropertyGroup>
     <IsPackable>false</IsPackable>
+    <!-- WireMock.Net 1.6.7 pulls Scriban.Signed/System.Linq.Dynamic.Core below their patched
+         versions with no patched WireMock release available; suppress only the audit warnings
+         so the integration stub can restore. -->
+    <NoWarn>$(NoWarn);NU1902;NU1903;NU1904</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -12,6 +16,7 @@
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />
     <PackageReference Include="Shouldly" />
+    <PackageReference Include="WireMock.Net" />
     <PackageReference Include="Testcontainers.PostgreSql" />
     <!-- Direct pin to force Testcontainers' transitive dependency past the vulnerable 2023.0.0
          it would otherwise resolve to (see Directory.Packages.props). -->

@@ -4,4 +4,12 @@
     <ProjectReference Include="..\Orchestrator.Application\Orchestrator.Application.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" />
+    <!-- Direct pin to force Microsoft.Data.Sqlite's transitive dependency past the
+         vulnerable 2.1.11 it would otherwise resolve to (see Directory.Packages.props).
+         No PrivateAssets: the native e_sqlite3 binaries must flow to the output. -->
+    <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" />
+  </ItemGroup>
+
 </Project>

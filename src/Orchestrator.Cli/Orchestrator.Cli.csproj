@@ -10,6 +10,7 @@
     <PackageReference Include="Newtonsoft.Json">
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+    <PackageReference Include="System.CommandLine" />
   </ItemGroup>
 
   <PropertyGroup>

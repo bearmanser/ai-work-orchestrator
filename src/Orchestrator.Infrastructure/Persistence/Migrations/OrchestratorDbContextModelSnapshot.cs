@@ -303,6 +303,48 @@ namespace Orchestrator.Infrastructure.Persistence.Migrations
                     b.ToTable("artifacts", "orchestrator");
                 });
 
+            modelBuilder.Entity("Orchestrator.Domain.Identity.AdminAccount", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<DateTimeOffset?>("LastLoginAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_login_at");
+
+                    b.Property<string>("LoginName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("login_name");
+
+                    b.Property<DateTimeOffset>("PasswordChangedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("password_changed_at");
+
+                    b.Property<string>("PasswordHash")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("password_hash");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LoginName")
+                        .IsUnique();
+
+                    b.ToTable("admin_accounts", "orchestrator");
+                });
+
             modelBuilder.Entity("Orchestrator.Domain.Messaging.InboundEvent", b =>
                 {
                     b.Property<Guid>("Id")

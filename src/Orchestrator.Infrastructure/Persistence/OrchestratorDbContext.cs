@@ -6,6 +6,7 @@ using Orchestrator.Domain.Authorization;
 using Orchestrator.Domain.Budgets;
 using Orchestrator.Domain.Context;
 using Orchestrator.Domain.Evidence;
+using Orchestrator.Domain.Humans;
 using Orchestrator.Domain.Identity;
 using Orchestrator.Domain.Messaging;
 using Orchestrator.Domain.Operations;
@@ -32,6 +33,7 @@ public class OrchestratorDbContext(DbContextOptions<OrchestratorDbContext> optio
     public DbSet<RepositoryProfile> Repositories => Set<RepositoryProfile>();
     public DbSet<RepositoryRelationship> Relationships => Set<RepositoryRelationship>();
     public DbSet<Workspace> Workspaces => Set<Workspace>();
+    public DbSet<HumanQuestion> HumanQuestions => Set<HumanQuestion>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

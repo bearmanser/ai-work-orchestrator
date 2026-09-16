@@ -303,6 +303,92 @@ namespace Orchestrator.Infrastructure.Persistence.Migrations
                     b.ToTable("artifacts", "orchestrator");
                 });
 
+            modelBuilder.Entity("Orchestrator.Domain.Humans.HumanQuestion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AnswerText")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("answer_text");
+
+                    b.Property<DateTimeOffset?>("AnsweredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("answered_at");
+
+                    b.Property<Guid?>("AnsweredByPersonId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("answered_by_person_id");
+
+                    b.Property<DateTimeOffset>("AskedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("asked_at");
+
+                    b.Property<string>("ChannelId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("channel_id");
+
+                    b.Property<DateTimeOffset>("EscalateAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("escalate_at");
+
+                    b.Property<string>("PostedMessageTs")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("posted_message_ts");
+
+                    b.Property<string>("QuestionText")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("question_text");
+
+                    b.Property<Guid>("RecipientPersonId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("recipient_person_id");
+
+                    b.Property<DateTimeOffset>("RemindAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("remind_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("StepId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("step_id");
+
+                    b.Property<DateTimeOffset>("SuspendAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("suspend_at");
+
+                    b.Property<Guid>("TaskId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("task_id");
+
+                    b.Property<string>("ThreadTs")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("thread_ts");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("ChannelId", "ThreadTs");
+
+                    b.ToTable("human_questions", "orchestrator");
+                });
+
             modelBuilder.Entity("Orchestrator.Domain.Identity.AdminAccount", b =>
                 {
                     b.Property<Guid>("Id")

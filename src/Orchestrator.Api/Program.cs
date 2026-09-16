@@ -4,10 +4,12 @@ using Hangfire.Dashboard;
 using Hangfire.PostgreSql;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
+using Orchestrator.Adapters.Slack;
 using Orchestrator.Api.Auth;
 using Orchestrator.Api.Dashboard;
 using Orchestrator.Api.Endpoints;
 using Orchestrator.Api.Webhooks;
+using Orchestrator.Application.Humans;
 using Orchestrator.Application.Identity;
 using Orchestrator.Application.Operations;
 using Orchestrator.Application.Ports;
@@ -83,6 +85,14 @@ builder.Services.AddScoped<ITaskIntakeStore, EfTaskIntakeStore>();
 builder.Services.AddScoped<IOperationalControls, EfOperationalControls>();
 builder.Services.AddScoped<TaskIntakeService>();
 builder.Services.AddScoped<SlackEventStepHandler>();
+builder.Services.AddHttpClient<IChatGateway, SlackChatGateway>(client =>
+    client.BaseAddress = new Uri("https://slack.com/api/"));
+builder.Services.AddScoped<IHumanQuestionStore, EfHumanQuestionStore>();
+builder.Services.AddScoped<IQuestionTaskStore, EfHumanQuestionStore>();
+builder.Services.AddScoped<IQuestionStepLeases, EfHumanQuestionStore>();
+builder.Services.AddSingleton(new WorkingDayCalculator(new HashSet<DateOnly>()));
+builder.Services.AddScoped<HumanQuestionService>();
+builder.Services.AddScoped<QuestionEscalationJob>();
 
 var taskIntakeOptions = new TaskIntakeOptions();
 builder.Configuration.GetSection("Orchestrator:Intake").Bind(taskIntakeOptions);
@@ -139,6 +149,8 @@ RecurringJob.AddOrUpdate<OutboxPollingJob>(
     "outbox-dispatch", job => job.RunAsync(CancellationToken.None), "*/5 * * * * *");
 RecurringJob.AddOrUpdate<LeaseReclaimJob>(
     "lease-reclaim", job => job.RunAsync(CancellationToken.None), Cron.Minutely);
+RecurringJob.AddOrUpdate<QuestionEscalationJob>(
+    "question-escalation", job => job.RunAsync(CancellationToken.None), Cron.Hourly);
 
 app.Run();
 

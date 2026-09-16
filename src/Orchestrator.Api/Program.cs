@@ -61,6 +61,10 @@ builder.Services.AddScoped<IRelationshipStore, EfRelationshipStore>();
 builder.Services.AddScoped<ISecretStore, EnvironmentSecretStore>();
 builder.Services.AddScoped<IEventRegistry, EventRegistry>();
 builder.Services.AddScoped<IOutboxWriter, OutboxWriter>();
+builder.Services.AddSingleton<IPersonStore, InMemoryPersonStore>();
+builder.Services.AddSingleton<IOwnershipStore, InMemoryOwnershipStore>();
+builder.Services.AddScoped<IdentityResolver>();
+builder.Services.AddScoped<OwnershipDirectory>();
 
 var gitCatalogOptions = new GitCatalogOptions();
 builder.Configuration.GetSection("Orchestrator:Git").Bind(gitCatalogOptions);
@@ -100,6 +104,7 @@ app.UseMiddleware<CsrfMiddleware>();
 app.MapGet("/", () => "Hello World!");
 AuthEndpoints.Map(app);
 RepositoryEndpoints.Map(app);
+DirectoryEndpoints.Map(app);
 RelationshipEndpoints.Map(app);
 AzureDevOpsWebhookEndpoint.Map(app);
 SlackWebhookEndpoint.Map(app);

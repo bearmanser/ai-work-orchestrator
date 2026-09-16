@@ -9,7 +9,7 @@ namespace Orchestrator.Integration.Tests;
 [Trait("Category", "Integration")]
 public class LeaseManagerTests(PostgresFixture fixture)
 {
-    private readonly FakeTimeProvider _clock = new(DateTimeOffset.Parse("2026-09-15T12:00:00Z"));
+    private readonly ManualTimeProvider _clock = new(DateTimeOffset.Parse("2026-09-15T12:00:00Z"));
 
     [Fact]
     public async Task TryAcquire_UnleasedStep_Succeeds()

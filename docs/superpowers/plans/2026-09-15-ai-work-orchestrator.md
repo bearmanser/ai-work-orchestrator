@@ -28,7 +28,7 @@ Every task's requirements implicitly include this section.
 - **Checks:** Build and test commands are executed by the orchestrator runtime, never by the agent, and an agent's self-reported check results are treated as unverified claims. See Task 29.
 - **Budget dimensions (fixed — do not invent others):** `MaxUsd` (decimal), `MaxWallClock` (TimeSpan), `MaxAgentInvocations` (int), `MaxCorrectionAttempts` (int). Tracked cumulatively per task and per operation.
 - **Migrations:** Every schema change ships as an EF Core migration committed with the task that introduces it. Never edit a migration that has already been committed.
-- **Commits:** Conventional Commits (`feat:`, `fix:`, `test:`, `chore:`, `docs:`, `refactor:`). 
+- **Commits:** Conventional Commits (`feat:`, `fix:`, `test:`, `chore:`, `docs:`, `refactor:`). **Never add a `Co-Authored-By` trailer, or any other attribution trailer, to any commit.** The repository owner has directed this explicitly; it overrides any default attribution guidance from the tooling.
 - **Test naming:** `MethodOrBehaviour_Condition_ExpectedResult`. Tests needing PostgreSQL use the `PostgresFixture` collection (Task 2) and carry `[Trait("Category", "Integration")]`.
 - **Every task ends green:** `dotnet test` passes and `dotnet format --verify-no-changes` is clean before the commit step.
 

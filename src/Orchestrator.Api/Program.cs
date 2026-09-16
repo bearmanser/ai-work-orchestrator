@@ -9,13 +9,16 @@ using Orchestrator.Api.Dashboard;
 using Orchestrator.Api.Endpoints;
 using Orchestrator.Api.Webhooks;
 using Orchestrator.Application.Identity;
+using Orchestrator.Application.Operations;
 using Orchestrator.Application.Ports;
 using Orchestrator.Application.Repositories;
+using Orchestrator.Application.Slack;
 using Orchestrator.Application.Steps;
 using Orchestrator.Infrastructure.Audit;
 using Orchestrator.Infrastructure.Identity;
 using Orchestrator.Infrastructure.Inbox;
 using Orchestrator.Infrastructure.Jobs;
+using Orchestrator.Infrastructure.Operations;
 using Orchestrator.Infrastructure.Outbox;
 using Orchestrator.Infrastructure.Persistence;
 using Orchestrator.Infrastructure.Secrets;
@@ -51,6 +54,17 @@ builder.Services.AddScoped<OutboxDispatcher>(sp => new OutboxDispatcher(
         {
             await sp.GetRequiredService<IJobScheduler>().EnqueueStepAsync(stepId, ct);
         }
+        else if (message.MessageType == "slack.event")
+        {
+            var inbound = JsonSerializer.Deserialize<SlackInbound>(
+                message.PayloadJson,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            if (inbound is not null)
+            {
+                await sp.GetRequiredService<SlackEventStepHandler>()
+                    .HandleSlackEventAsync(inbound, ct);
+            }
+        }
     },
     sp.GetRequiredService<TimeProvider>()));
 builder.Services.AddScoped<IAuditWriter, AuditWriter>();
@@ -65,6 +79,14 @@ builder.Services.AddSingleton<IPersonStore, InMemoryPersonStore>();
 builder.Services.AddSingleton<IOwnershipStore, InMemoryOwnershipStore>();
 builder.Services.AddScoped<IdentityResolver>();
 builder.Services.AddScoped<OwnershipDirectory>();
+builder.Services.AddScoped<ITaskIntakeStore, EfTaskIntakeStore>();
+builder.Services.AddScoped<IOperationalControls, EfOperationalControls>();
+builder.Services.AddScoped<TaskIntakeService>();
+builder.Services.AddScoped<SlackEventStepHandler>();
+
+var taskIntakeOptions = new TaskIntakeOptions();
+builder.Configuration.GetSection("Orchestrator:Intake").Bind(taskIntakeOptions);
+builder.Services.AddSingleton(taskIntakeOptions);
 
 var gitCatalogOptions = new GitCatalogOptions();
 builder.Configuration.GetSection("Orchestrator:Git").Bind(gitCatalogOptions);

@@ -1,26 +1,7 @@
 using System.Text.Json;
+using Orchestrator.Application.Slack;
 
 namespace Orchestrator.Adapters.Slack;
-
-public enum SlackInboundKind
-{
-    AppMention,
-    DirectMessage,
-    ThreadReply,
-    BlockAction,
-}
-
-/// <summary>
-/// A Slack event worth enqueueing for downstream handling.
-/// </summary>
-public sealed record SlackInbound(
-    string EventId,
-    SlackInboundKind Kind,
-    string ChannelId,
-    string? ThreadTs,
-    string MessageTs,
-    string UserId,
-    string Text);
 
 /// <summary>
 /// Parses Slack <c>event_callback</c> payloads. <c>app_mention</c> maps to

@@ -439,6 +439,26 @@ namespace Orchestrator.Infrastructure.Persistence.Migrations
                     b.ToTable("outbox_messages", "orchestrator");
                 });
 
+            modelBuilder.Entity("Orchestrator.Domain.Operations.OperationalFlag", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("key");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<bool>("Value")
+                        .HasColumnType("boolean")
+                        .HasColumnName("value");
+
+                    b.HasKey("Key");
+
+                    b.ToTable("operational_flags", "orchestrator");
+                });
+
             modelBuilder.Entity("Orchestrator.Domain.Repositories.RepositoryProfile", b =>
                 {
                     b.Property<Guid>("Id")

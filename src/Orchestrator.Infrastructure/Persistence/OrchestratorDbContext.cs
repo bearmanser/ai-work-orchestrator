@@ -8,6 +8,7 @@ using Orchestrator.Domain.Context;
 using Orchestrator.Domain.Evidence;
 using Orchestrator.Domain.Identity;
 using Orchestrator.Domain.Messaging;
+using Orchestrator.Domain.Operations;
 using Orchestrator.Domain.Repositories;
 using Orchestrator.Domain.Steps;
 using Orchestrator.Domain.Tasks;
@@ -20,6 +21,7 @@ public class OrchestratorDbContext(DbContextOptions<OrchestratorDbContext> optio
     public DbSet<WorkTask> Tasks => Set<WorkTask>();
     public DbSet<OutboxMessage> Outbox => Set<OutboxMessage>();
     public DbSet<InboundEvent> InboundEvents => Set<InboundEvent>();
+    public DbSet<OperationalFlag> OperationalFlags => Set<OperationalFlag>();
     public DbSet<Step> Steps => Set<Step>();
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
     public DbSet<BudgetLedger> Budgets => Set<BudgetLedger>();

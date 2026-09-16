@@ -100,7 +100,8 @@ namespace Orchestrator.Infrastructure.Persistence.Migrations
                         .HasColumnName("elapsed_wall_clock");
 
                     b.Property<decimal>("SpentUsd")
-                        .HasColumnType("numeric")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("numeric(18,6)")
                         .HasColumnName("spent_usd");
 
                     b.Property<Guid>("TaskId")
@@ -352,7 +353,8 @@ namespace Orchestrator.Infrastructure.Persistence.Migrations
                                 .HasColumnName("max_correction_attempts");
 
                             b1.Property<decimal>("MaxUsd")
-                                .HasColumnType("numeric")
+                                .HasPrecision(18, 6)
+                                .HasColumnType("numeric(18,6)")
                                 .HasColumnName("max_usd");
 
                             b1.Property<TimeSpan>("MaxWallClock")

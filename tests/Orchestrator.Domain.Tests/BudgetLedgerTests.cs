@@ -41,6 +41,20 @@ public class BudgetLedgerTests
     }
 
     [Fact]
+    public void Charge_ExceedingTwoDimensionsAtOnce_ReportsTheEarlierOneInCheckOrder()
+    {
+        var ledger = new BudgetLedger(Guid.CreateVersion7(), Limits);
+        // Exceed both Usd and AgentInvocations in the same charge. EnsureWithinLimits
+        // must report Usd, since it is checked first - this pins the fixed check
+        // order (Usd, WallClock, AgentInvocations, CorrectionAttempts) against a
+        // future reordering, rather than that order being merely incidental.
+        ledger.Charge(12.01m, TimeSpan.Zero, agentInvocations: 9);
+
+        var ex = Should.Throw<BudgetExceededException>(ledger.EnsureWithinLimits);
+        ex.Dimension.ShouldBe(BudgetDimension.Usd);
+    }
+
+    [Fact]
     public void Remaining_ReportsEachDimension()
     {
         var ledger = new BudgetLedger(Guid.CreateVersion7(), Limits);

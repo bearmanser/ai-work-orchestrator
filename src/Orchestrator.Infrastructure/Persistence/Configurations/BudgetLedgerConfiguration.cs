@@ -13,6 +13,12 @@ public sealed class BudgetLedgerConfiguration : IEntityTypeConfiguration<BudgetL
         b.Property(l => l.Id).ValueGeneratedNever();
         b.HasIndex(l => l.TaskId).IsUnique();
 
+        // 18 total digits, 6 after the decimal point: comfortably covers agent costs
+        // quoted to four or more decimals (e.g. a Claude result's total_cost_usd of
+        // 0.4213) plus cumulative task spend, and states the column's contract
+        // explicitly rather than leaving it as unscaled numeric.
+        b.Property(l => l.SpentUsd).HasPrecision(18, 6);
+
         // BudgetLimits is table-split onto the same "budgets" row as its owner. EF's
         // default table-splitting convention gives the owned type a shadow FK/PK
         // property named "BudgetLedgerId" that shares the owner's key *value* but not
@@ -31,6 +37,7 @@ public sealed class BudgetLedgerConfiguration : IEntityTypeConfiguration<BudgetL
             o.WithOwner().HasForeignKey("BudgetLedgerId");
             o.Property<Guid>("BudgetLedgerId").HasColumnName("id");
             o.HasKey("BudgetLedgerId");
+            o.Property(l => l.MaxUsd).HasPrecision(18, 6);
         });
         b.Navigation(l => l.Limits).IsRequired();
     }

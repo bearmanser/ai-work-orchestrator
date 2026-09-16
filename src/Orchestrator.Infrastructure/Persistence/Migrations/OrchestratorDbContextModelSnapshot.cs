@@ -511,6 +511,60 @@ namespace Orchestrator.Infrastructure.Persistence.Migrations
                     b.ToTable("repositories", "orchestrator");
                 });
 
+            modelBuilder.Entity("Orchestrator.Domain.Repositories.RepositoryRelationship", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AdminNote")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("admin_note");
+
+                    b.Property<string>("EvidenceJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("evidence_json");
+
+                    b.Property<DateTimeOffset>("LastVerifiedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_verified_at");
+
+                    b.Property<string>("LastVerifiedCommit")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("last_verified_commit");
+
+                    b.Property<string>("RelationshipType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("relationship_type");
+
+                    b.Property<Guid>("SourceRepositoryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("source_repository_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("TargetRepositoryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("target_repository_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SourceRepositoryId");
+
+                    b.HasIndex("TargetRepositoryId");
+
+                    b.ToTable("repository_relationships", "orchestrator");
+                });
+
             modelBuilder.Entity("Orchestrator.Domain.Repositories.Workspace", b =>
                 {
                     b.Property<string>("WorkspaceId")

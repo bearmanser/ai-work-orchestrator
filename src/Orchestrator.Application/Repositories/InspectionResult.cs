@@ -2,8 +2,8 @@ using Orchestrator.Domain.Repositories;
 
 namespace Orchestrator.Application.Repositories;
 
-public sealed record DetectedProject(string Path, string Ecosystem);
-public sealed record DetectedApiSurface(string Path, string Kind);
+public sealed record DetectedProject(string Path, string Ecosystem, string? Identifier = null);
+public sealed record DetectedApiSurface(string Path, string Kind, string? Identifier = null);
 public sealed record DetectedDependency(string Kind, string Identifier, string SourcePath, string? Version);
 
 /// <summary>One detector's partial findings; the inspector merges them.</summary>

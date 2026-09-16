@@ -54,6 +54,7 @@ builder.Services.AddScoped<IAuditWriter, AuditWriter>();
 builder.Services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
 builder.Services.AddScoped<IRepositoryProfileStore, EfRepositoryProfileStore>();
 builder.Services.AddScoped<RepositoryCatalogService>();
+builder.Services.AddScoped<IRelationshipStore, EfRelationshipStore>();
 
 var gitCatalogOptions = new GitCatalogOptions();
 builder.Configuration.GetSection("Orchestrator:Git").Bind(gitCatalogOptions);
@@ -93,6 +94,7 @@ app.UseMiddleware<CsrfMiddleware>();
 app.MapGet("/", () => "Hello World!");
 AuthEndpoints.Map(app);
 RepositoryEndpoints.Map(app);
+RelationshipEndpoints.Map(app);
 app.UseHangfireDashboard("/hangfire", new DashboardOptions
 {
     Authorization = [new AdminOnlyDashboardFilter()],

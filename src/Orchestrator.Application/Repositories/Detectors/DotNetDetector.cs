@@ -20,7 +20,7 @@ public sealed class DotNetDetector : IRepositoryDetector
 
         foreach (var csproj in csprojs)
         {
-            projects.Add(new DetectedProject(csproj, "dotnet"));
+            projects.Add(new DetectedProject(csproj, "dotnet", PackageId(root, csproj)));
             dependencies.AddRange(FindDependencies(root, csproj));
         }
 
@@ -31,6 +31,22 @@ public sealed class DotNetDetector : IRepositoryDetector
             : null;
 
         return new DetectorResult(projects, dependencies, [], [], commands);
+    }
+
+    /// <summary>The package this project produces: PackageId, else AssemblyName, else the file name.</summary>
+    private static string? PackageId(string root, string csproj)
+    {
+        try
+        {
+            var document = XDocument.Load(Path.Combine(root, csproj));
+            return document.Descendants().FirstOrDefault(e => e.Name.LocalName == "PackageId")?.Value
+                ?? document.Descendants().FirstOrDefault(e => e.Name.LocalName == "AssemblyName")?.Value
+                ?? Path.GetFileNameWithoutExtension(csproj.Split('/').Last());
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Xml.XmlException)
+        {
+            return null;
+        }
     }
 
     private static IEnumerable<DetectedDependency> FindDependencies(string root, string csproj)

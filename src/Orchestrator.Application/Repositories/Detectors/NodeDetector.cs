@@ -26,7 +26,7 @@ public sealed class NodeDetector : IRepositoryDetector
                 continue;
             }
 
-            projects.Add(new DetectedProject(manifest, "node"));
+            projects.Add(new DetectedProject(manifest, "node", PackageName(package)));
             dependencies.AddRange(ReadDependencies(package, "dependencies", manifest));
             dependencies.AddRange(ReadDependencies(package, "devDependencies", manifest));
 
@@ -35,6 +35,12 @@ public sealed class NodeDetector : IRepositoryDetector
 
         return new DetectorResult(projects, dependencies, [], [], commands);
     }
+
+    private static string? PackageName(JsonElement package) =>
+        package.TryGetProperty("name", out var name)
+        && name.ValueKind == JsonValueKind.String
+            ? name.GetString()
+            : null;
 
     private static IEnumerable<DetectedDependency> ReadDependencies(
         JsonElement package, string section, string sourcePath)

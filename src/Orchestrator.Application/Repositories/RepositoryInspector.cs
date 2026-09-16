@@ -123,12 +123,31 @@ public sealed class RepositoryInspector(params IRepositoryDetector[] detectors)
             if (IsOpenApiFile(name))
                 surfaces.Add(new DetectedApiSurface(file, "openapi"));
             if (name.EndsWith(".nswag", StringComparison.Ordinal))
-                dependencies.Add(new DetectedDependency("generated-client", file, file, null));
+                dependencies.Add(new DetectedDependency(
+                    "generated-client", NswagUrl(root, file) ?? file, file, null));
             if (name.EndsWith(".json", StringComparison.Ordinal))
                 dependencies.AddRange(FindBaseUrls(root, file));
         }
 
         return new DetectorResult([], dependencies, [], surfaces, null);
+    }
+
+    /// <summary>The first absolute http(s) URL inside an NSwag config, if any.</summary>
+    private static string? NswagUrl(string root, string file)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, file)));
+            return WalkStrings(document.RootElement)
+                .Select(v => v.Value)
+                .FirstOrDefault(v => v is not null
+                    && Uri.TryCreate(v, UriKind.Absolute, out var uri)
+                    && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps));
+        }
+        catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
+        {
+            return null;
+        }
     }
 
     private static bool IsOpenApiFile(string fileName) =>

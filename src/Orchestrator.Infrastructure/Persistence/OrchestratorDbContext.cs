@@ -28,6 +28,7 @@ public class OrchestratorDbContext(DbContextOptions<OrchestratorDbContext> optio
     public DbSet<ContextSnapshot> ContextSnapshots => Set<ContextSnapshot>();
     public DbSet<AdminAccount> AdminAccounts => Set<AdminAccount>();
     public DbSet<RepositoryProfile> Repositories => Set<RepositoryProfile>();
+    public DbSet<Workspace> Workspaces => Set<Workspace>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

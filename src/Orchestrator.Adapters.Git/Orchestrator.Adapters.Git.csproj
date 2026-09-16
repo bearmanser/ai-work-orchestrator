@@ -4,4 +4,8 @@
     <ProjectReference Include="..\Orchestrator.Application\Orchestrator.Application.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="LibGit2Sharp" />
+  </ItemGroup>
+
 </Project>

@@ -511,6 +511,65 @@ namespace Orchestrator.Infrastructure.Persistence.Migrations
                     b.ToTable("repositories", "orchestrator");
                 });
 
+            modelBuilder.Entity("Orchestrator.Domain.Repositories.Workspace", b =>
+                {
+                    b.Property<string>("WorkspaceId")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("workspace_id");
+
+                    b.Property<string>("BaseBranch")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("base_branch");
+
+                    b.Property<string>("BaselineCommit")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("baseline_commit");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("CredentialKey")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("credential_key");
+
+                    b.Property<string>("Path")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("path");
+
+                    b.Property<Guid>("RepositoryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("repository_id");
+
+                    b.Property<Guid>("TaskId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("task_id");
+
+                    b.Property<string>("WorkBranch")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("work_branch");
+
+                    b.HasKey("WorkspaceId");
+
+                    b.HasIndex("TaskId");
+
+                    b.HasIndex("TaskId", "RepositoryId")
+                        .IsUnique();
+
+                    b.ToTable("workspaces", "orchestrator");
+                });
+
             modelBuilder.Entity("Orchestrator.Domain.Steps.Step", b =>
                 {
                     b.Property<Guid>("Id")

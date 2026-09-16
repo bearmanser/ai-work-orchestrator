@@ -54,13 +54,24 @@ each candidate task for a migration; schedule at most one, and pair it with task
 touch no schema.
 
 **Check for shared files before dispatching a batch.** A task is only eligible for the
-batch if no other task in it creates or modifies the same file. `OrchestratorDbContext.cs`,
-`Directory.Packages.props`, `Program.cs` and the architecture test files are the usual
-collision points.
+batch if no other task in it creates or modifies the same file. The usual collision
+points are `OrchestratorDbContext.cs`, `Directory.Packages.props`, `Program.cs`, the
+architecture test files, and the repository-root dotfiles — `.gitignore` and
+`.gitattributes`. The dotfiles are easy to forget because no task's Files block
+mentions them, yet a task can be forced to touch one: Task 9 hit an unanchored
+`secrets/` ignore rule that silently excluded its own source folder.
 
 **Integration tests are safe to run concurrently.** Each `PostgresFixture` starts its own
 Testcontainers instance, so parallel worktrees get separate databases and do not
 contaminate each other.
+
+**Generated migrations need a normalisation pass.** `dotnet ef migrations add` uses
+`Environment.NewLine`, so on Windows it writes UTF-8-BOM/CRLF files regardless of
+`.editorconfig` or `.gitattributes`. The repository's `*.cs text eol=lf` rule fixes the
+committed blob, but the generated working-tree file still needs one `dotnet format` or
+`git add --renormalize .` pass before it is committed. Every migration-generating task
+must do this; it is not optional tidiness, it is what stops the next checkout showing
+a whole-file diff.
 
 **Merge order is review order.** A task merges to `main` when its own review is clean.
 The next task in the batch then rebases on the updated `main` and re-runs its tests before

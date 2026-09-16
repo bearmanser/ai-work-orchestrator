@@ -7,15 +7,18 @@ using Microsoft.EntityFrameworkCore;
 using Orchestrator.Api.Auth;
 using Orchestrator.Api.Dashboard;
 using Orchestrator.Api.Endpoints;
+using Orchestrator.Api.Webhooks;
 using Orchestrator.Application.Identity;
 using Orchestrator.Application.Ports;
 using Orchestrator.Application.Repositories;
 using Orchestrator.Application.Steps;
 using Orchestrator.Infrastructure.Audit;
 using Orchestrator.Infrastructure.Identity;
+using Orchestrator.Infrastructure.Inbox;
 using Orchestrator.Infrastructure.Jobs;
 using Orchestrator.Infrastructure.Outbox;
 using Orchestrator.Infrastructure.Persistence;
+using Orchestrator.Infrastructure.Secrets;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -55,6 +58,9 @@ builder.Services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
 builder.Services.AddScoped<IRepositoryProfileStore, EfRepositoryProfileStore>();
 builder.Services.AddScoped<RepositoryCatalogService>();
 builder.Services.AddScoped<IRelationshipStore, EfRelationshipStore>();
+builder.Services.AddScoped<ISecretStore, EnvironmentSecretStore>();
+builder.Services.AddScoped<IEventRegistry, EventRegistry>();
+builder.Services.AddScoped<IOutboxWriter, OutboxWriter>();
 
 var gitCatalogOptions = new GitCatalogOptions();
 builder.Configuration.GetSection("Orchestrator:Git").Bind(gitCatalogOptions);
@@ -95,6 +101,7 @@ app.MapGet("/", () => "Hello World!");
 AuthEndpoints.Map(app);
 RepositoryEndpoints.Map(app);
 RelationshipEndpoints.Map(app);
+AzureDevOpsWebhookEndpoint.Map(app);
 app.UseHangfireDashboard("/hangfire", new DashboardOptions
 {
     Authorization = [new AdminOnlyDashboardFilter()],

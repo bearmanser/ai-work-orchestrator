@@ -2170,7 +2170,7 @@ git commit -m "feat: add secret store with reference-only persistence and value-
 - Consumes: nothing.
 - Produces:
   - `BudgetLimits = record(decimal MaxUsd, TimeSpan MaxWallClock, int MaxAgentInvocations, int MaxCorrectionAttempts)`.
-  - `BudgetLedger` with `Charge(decimal usd, TimeSpan elapsed, int agentInvocations, DateTimeOffset now)`, `RecordCorrectionAttempt()`, `Remaining()` → `BudgetRemaining`, and `EnsureWithinLimits()` which throws `BudgetExceededException` naming the exhausted dimension.
+  - `BudgetLedger` with `Charge(decimal usd, TimeSpan elapsed, int agentInvocations)`, `RecordCorrectionAttempt()`, `Remaining()` → `BudgetRemaining`, and `EnsureWithinLimits()` which throws `BudgetExceededException` naming the exhausted dimension.
   - Cumulative per task: feedback cycles add to the same ledger, so new PR comments cannot reset limits indefinitely.
 
 - [ ] **Step 1: Write the failing tests**

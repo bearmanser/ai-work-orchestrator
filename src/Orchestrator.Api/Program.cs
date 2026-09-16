@@ -102,6 +102,7 @@ AuthEndpoints.Map(app);
 RepositoryEndpoints.Map(app);
 RelationshipEndpoints.Map(app);
 AzureDevOpsWebhookEndpoint.Map(app);
+SlackWebhookEndpoint.Map(app);
 app.UseHangfireDashboard("/hangfire", new DashboardOptions
 {
     Authorization = [new AdminOnlyDashboardFilter()],

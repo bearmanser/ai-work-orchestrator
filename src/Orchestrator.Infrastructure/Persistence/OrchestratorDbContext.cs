@@ -6,6 +6,7 @@ using Orchestrator.Domain.Authorization;
 using Orchestrator.Domain.Budgets;
 using Orchestrator.Domain.Context;
 using Orchestrator.Domain.Evidence;
+using Orchestrator.Domain.Identity;
 using Orchestrator.Domain.Messaging;
 using Orchestrator.Domain.Steps;
 using Orchestrator.Domain.Tasks;
@@ -24,6 +25,7 @@ public class OrchestratorDbContext(DbContextOptions<OrchestratorDbContext> optio
     public DbSet<AuthorizationEnvelope> AuthorizationEnvelopes => Set<AuthorizationEnvelope>();
     public DbSet<Artifact> Artifacts => Set<Artifact>();
     public DbSet<ContextSnapshot> ContextSnapshots => Set<ContextSnapshot>();
+    public DbSet<AdminAccount> AdminAccounts => Set<AdminAccount>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

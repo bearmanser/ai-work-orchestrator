@@ -1987,6 +1987,9 @@ Diffs, test logs, agent transcripts, and context snapshots are too large for tab
 - Create: `src/Orchestrator.Domain/Evidence/Artifact.cs`, `src/Orchestrator.Domain/Context/ContextSnapshot.cs`
 - Create: `src/Orchestrator.Application/Ports/IArtifactStore.cs`
 - Create: `src/Orchestrator.Infrastructure/Artifacts/FileSystemArtifactStore.cs`
+- Create: `src/Orchestrator.Infrastructure/Persistence/Configurations/ArtifactConfiguration.cs`, `ContextSnapshotConfiguration.cs`
+- Modify: `src/Orchestrator.Infrastructure/Persistence/OrchestratorDbContext.cs` (add `DbSet<Artifact> Artifacts`, `DbSet<ContextSnapshot> ContextSnapshots`)
+- Create: a migration for both tables (**this task produces a migration** — the Step 1 tests query `db.Artifacts`, so the table must exist; the original Files block omitted this)
 - Test: `tests/Orchestrator.Integration.Tests/ArtifactStoreTests.cs`
 
 **Interfaces:**

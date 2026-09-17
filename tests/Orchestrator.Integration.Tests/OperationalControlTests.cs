@@ -10,6 +10,7 @@ using Orchestrator.Application.Operations;
 using Orchestrator.Application.Policy;
 using Orchestrator.Application.Ports;
 using Orchestrator.Application.Slack;
+using Orchestrator.Application.Steps;
 using Orchestrator.Domain.Authorization;
 using Orchestrator.Domain.Budgets;
 using Orchestrator.Domain.Evidence;
@@ -23,6 +24,7 @@ using Orchestrator.Infrastructure.Audit;
 using Orchestrator.Infrastructure.Outbox;
 using Orchestrator.Infrastructure.Persistence;
 using Shouldly;
+using AgentStage = Orchestrator.Domain.Authorization.AgentStage;
 
 namespace Orchestrator.Integration.Tests;
 
@@ -33,6 +35,7 @@ public sealed class OperationalControlTests(PostgresFixture fixture, Orchestrato
 {
     private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
     private string _csrfToken = "";
+    private string _cookieHeader = "";
 
     [Fact]
     public async Task PauseIntake_ThenSlackRequest_CreatesNoTaskAndRepliesThatIntakeIsPaused()
@@ -44,8 +47,7 @@ public sealed class OperationalControlTests(PostgresFixture fixture, Orchestrato
         response.StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
         // Verify intake is paused via the operational controls
-        var ops = factory.Services.GetRequiredService<IOperationalControls>();
-        (await ops.IsIntakePausedAsync(CancellationToken.None)).ShouldBeTrue();
+        (await IsIntakePausedAsync()).ShouldBeTrue();
 
         // Send a Slack event - it should not create a task because intake is paused
         await SignedSlackPostAsync(AppMentionPayload("evt-paused"));
@@ -63,14 +65,13 @@ public sealed class OperationalControlTests(PostgresFixture fixture, Orchestrato
 
         // Pause intake
         await PostWithCsrfAsync(client, "/api/admin/operations/pause-intake", null);
-        var ops = factory.Services.GetRequiredService<IOperationalControls>();
-        (await ops.IsIntakePausedAsync(CancellationToken.None)).ShouldBeTrue();
+        (await IsIntakePausedAsync()).ShouldBeTrue();
 
         // Resume intake
         var response = await PostWithCsrfAsync(client, "/api/admin/operations/resume-intake", null);
         response.StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
-        (await ops.IsIntakePausedAsync(CancellationToken.None)).ShouldBeFalse();
+        (await IsIntakePausedAsync()).ShouldBeFalse();
     }
 
     [Fact]
@@ -157,16 +158,18 @@ public sealed class OperationalControlTests(PostgresFixture fixture, Orchestrato
     {
         await ResetAsync();
         var client = await AuthenticatedClientAsync();
+        var taskId = await SeedFullTaskGraphAsync();
 
         var response = await PostWithCsrfAsync(client, "/api/admin/operations/integrations/p1/disable", null);
         response.StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
         // Integration should be disabled
-        var ops = factory.Services.GetRequiredService<IOperationalControls>();
-        (await ops.IsIntegrationDisabledAsync("p1", CancellationToken.None)).ShouldBeTrue();
+        (await IsIntegrationDisabledAsync("p1")).ShouldBeTrue();
 
-        // Policy evaluation for P1 resource should be denied
-        var decision = await EvaluatePolicyAsync(Guid.NewGuid(), ActionKind.DomainRead);
+        // Policy evaluation against the disabled integration's P1 resource must be
+        // denied even though nothing about the envelope itself changed.
+        var decision = await EvaluatePolicyAsync(
+            taskId, ActionKind.DomainRead, new ResourceScope.P1Resource("p1", "co"));
         decision.ShouldBeOfType<PolicyDecision.Denied>();
     }
 
@@ -211,8 +214,13 @@ public sealed class OperationalControlTests(PostgresFixture fixture, Orchestrato
             new { loginName = "magnus", password = "a-long-enough-passphrase" });
         login.StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
-        // Extract CSRF token from cookie
+        // The session cookie is Secure-only, so the client's default cookie
+        // container (bound to the http:// TestServer origin) will not resend it
+        // automatically - forward it, and the CSRF cookie, as a raw Cookie header
+        // on every subsequent request instead (see AuthEndpointTests.CookieHeader
+        // for the same workaround).
         var cookies = login.Headers.GetValues("Set-Cookie").ToArray();
+        _cookieHeader = string.Join("; ", cookies.Select(c => c.Split(';', 2)[0]));
         var csrfCookie = cookies.FirstOrDefault(c => c.StartsWith("orchestrator_csrf", StringComparison.Ordinal));
         _csrfToken = csrfCookie?.Split('=', 2)[1].Split(';')[0] ?? "";
 
@@ -224,6 +232,7 @@ public sealed class OperationalControlTests(PostgresFixture fixture, Orchestrato
         using var request = new HttpRequestMessage(HttpMethod.Post, path);
         if (content is not null)
             request.Content = JsonContent.Create(content, options: JsonOpts);
+        request.Headers.Add("Cookie", _cookieHeader);
         request.Headers.Add("X-CSRF-Token", _csrfToken);
         return await client.SendAsync(request);
     }
@@ -301,7 +310,8 @@ public sealed class OperationalControlTests(PostgresFixture fixture, Orchestrato
                         message.PayloadJson, JsonOpts);
                     if (inbound is not null)
                     {
-                        var handler = factory.Services.GetRequiredService<SlackEventStepHandler>();
+                        using var handlerScope = factory.Services.CreateScope();
+                        var handler = handlerScope.ServiceProvider.GetRequiredService<SlackEventStepHandler>();
                         await handler.HandleSlackEventAsync(inbound, ct);
                     }
                 }
@@ -426,7 +436,8 @@ public sealed class OperationalControlTests(PostgresFixture fixture, Orchestrato
         return (task.Id, step.Id);
     }
 
-    private async Task<PolicyDecision> EvaluatePolicyAsync(Guid taskId, ActionKind action)
+    private async Task<PolicyDecision> EvaluatePolicyAsync(
+        Guid taskId, ActionKind action, ResourceScope? resource = null)
     {
         await using var db = fixture.NewDbContext();
         var envelope = await db.AuthorizationEnvelopes.SingleAsync(e => e.TaskId == taskId);
@@ -434,7 +445,7 @@ public sealed class OperationalControlTests(PostgresFixture fixture, Orchestrato
         var engine = factory.Services.GetRequiredService<PolicyEngine>();
         var request = new PolicyRequest(
             taskId, "magnus", action,
-            new ResourceScope.RepositoryResource(Guid.NewGuid(), "main"),
+            resource ?? new ResourceScope.RepositoryResource(Guid.NewGuid(), "main"),
             envelope, budget, factory.Clock.GetUtcNow(), Guid.CreateVersion7().ToString());
         return await engine.EvaluateAsync(request, CancellationToken.None);
     }

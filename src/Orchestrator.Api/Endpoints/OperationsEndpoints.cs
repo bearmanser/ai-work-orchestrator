@@ -119,7 +119,7 @@ public static class TaskOperationsEndpoints
         try
         {
             await service.RetryStepAsync(taskId, stepId, actor, ct);
-            return TypedResults.Accepted();
+            return TypedResults.Accepted((string?)null);
         }
         catch (InvalidOperationException ex) when (ex.Message.Contains("unknown tool call outcomes"))
         {

@@ -47,17 +47,11 @@ public sealed class InMemoryToolCallStore : IToolCallStore
     {
         lock (_gate)
         {
-            var key = _records.Values.FirstOrDefault(r => r.Id == recordId)?.IdempotencyKey;
-            if (key is not null)
-            {
-                var existing = _records[key];
-                _records[key] = existing with
-                {
-                    Outcome = ToolCallOutcome.Succeeded,
-                    ResultJson = value is null ? null : JsonSerializer.Serialize(value),
-                    CompletedAt = now,
-                };
-            }
+            var existing = _records.Values.FirstOrDefault(r => r.Id == recordId);
+            existing?.Complete(
+                ToolCallOutcome.Succeeded,
+                value is null ? null : JsonSerializer.Serialize(value),
+                now);
 
             return Task.CompletedTask;
         }
@@ -72,6 +66,21 @@ public sealed class InMemoryToolCallStore : IToolCallStore
         {
             var hasUnknown = _records.Values.Any(r => r.TaskId == taskId && r.Outcome == ToolCallOutcome.Unknown);
             return Task.FromResult(hasUnknown);
+        }
+    }
+
+    public Task<int> ReconcileUnknownAsync(Guid taskId, DateTimeOffset now, CancellationToken ct)
+    {
+        lock (_gate)
+        {
+            var unknown = _records.Values
+                .Where(r => r.TaskId == taskId && r.Outcome == ToolCallOutcome.Unknown)
+                .ToList();
+
+            foreach (var record in unknown)
+                record.Complete(ToolCallOutcome.Succeeded, record.ResultJson, now);
+
+            return Task.FromResult(unknown.Count);
         }
     }
 }

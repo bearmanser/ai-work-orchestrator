@@ -54,4 +54,23 @@ public sealed class Step
         LeaseOwner = null;
         LeaseExpiresAt = null;
     }
+
+    /// <summary>
+    /// Resets a non-pending step back to <see cref="StepStatus.Pending"/> for a retry,
+    /// incrementing <see cref="AttemptCount"/> and clearing the failure reason and any
+    /// stale lease. Callers are responsible for checking, before calling this, that no
+    /// tool call for the step's task has an unreconciled <c>Unknown</c> outcome - this
+    /// method only performs the step-side state reset.
+    /// </summary>
+    public void RetryReset(DateTimeOffset now)
+    {
+        if (Status == StepStatus.Pending)
+            throw new InvalidOperationException($"Step {Id} is already pending; there is nothing to retry.");
+
+        AttemptCount++;
+        Status = StepStatus.Pending;
+        FailureReason = null;
+        LeaseOwner = null;
+        LeaseExpiresAt = null;
+    }
 }

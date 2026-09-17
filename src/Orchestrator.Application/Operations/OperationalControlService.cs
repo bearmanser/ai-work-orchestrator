@@ -38,11 +38,11 @@ public sealed class OperationalControlService(
 
     public async Task CancelTaskAsync(Guid taskId, string actor, CancellationToken ct)
     {
-        await controls.CancelTaskAsync(taskId, actor, ct);
+        var hadOpenPullRequest = await controls.CancelTaskAsync(taskId, actor, ct);
         await scheduler.RequestCancellationAsync(taskId, ct);
 
-        // Check for open PRs and notify
-        await NotifyOpenPullRequestsAsync(taskId, ct);
+        if (hadOpenPullRequest)
+            await NotifyOpenPullRequestRemainsAsync(taskId, ct);
     }
 
     public async Task RevokeAuthorizationAsync(Guid taskId, string actor, CancellationToken ct) =>
@@ -61,14 +61,24 @@ public sealed class OperationalControlService(
     public async Task ReconcileTaskAsync(Guid taskId, string actor, CancellationToken ct) =>
         await controls.ReconcileTaskAsync(taskId, actor, ct);
 
-    private async Task NotifyOpenPullRequestsAsync(Guid taskId, CancellationToken ct)
+    private async Task NotifyOpenPullRequestRemainsAsync(Guid taskId, CancellationToken ct)
     {
-        // In a full implementation, this would query the PR store
-        // For now, we just post a generic message
-        await chat.PostAsync(new ChatMessage(
-            ChannelId: "C-123",
-            ThreadTs: null,
-            RecipientSlackUserId: null,
-            Text: $"Task {taskId} was cancelled. Any open pull requests remain open and must be closed manually."), ct);
+        // Best-effort: the cancellation itself already succeeded and is durable
+        // (state transitioned, steps stopped, audited). A transient failure to reach
+        // chat must not turn a successful cancellation into a failed request or
+        // retry it into a duplicate notification.
+        try
+        {
+            await chat.PostAsync(new ChatMessage(
+                ChannelId: "C-123",
+                ThreadTs: null,
+                RecipientSlackUserId: null,
+                Text: $"Task {taskId} was cancelled. Its pull request is still open and was not closed - " +
+                      "close it manually if it should not be merged."), ct);
+        }
+        catch (Exception)
+        {
+            // Notification is best-effort; the cancellation already committed.
+        }
     }
 }

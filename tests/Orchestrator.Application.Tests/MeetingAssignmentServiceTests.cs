@@ -311,7 +311,7 @@ public sealed class MeetingAssignmentServiceTests
 
         public Task<bool> IsIntegrationDisabledAsync(string name, CancellationToken ct) => Task.FromResult(false);
 
-        public Task CancelTaskAsync(Guid taskId, string actor, CancellationToken ct) => throw new NotSupportedException();
+        public Task<bool> CancelTaskAsync(Guid taskId, string actor, CancellationToken ct) => throw new NotSupportedException();
 
         public Task RevokeAuthorizationAsync(Guid taskId, string actor, CancellationToken ct) => throw new NotSupportedException();
 

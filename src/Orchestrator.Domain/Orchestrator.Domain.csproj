@@ -4,8 +4,4 @@
     <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
   </PropertyGroup>
 
-  <ItemGroup>
-    <Compile Include="Operations\ToolCallOutcome.cs" />
-  </ItemGroup>
-
 </Project>

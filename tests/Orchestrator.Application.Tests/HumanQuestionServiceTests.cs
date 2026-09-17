@@ -2,6 +2,7 @@ using System.Text.Json;
 using Orchestrator.Application.Gateway;
 using Orchestrator.Application.Humans;
 using Orchestrator.Application.Identity;
+using Orchestrator.Application.Operations;
 using Orchestrator.Application.Policy;
 using Orchestrator.Application.Ports;
 using Orchestrator.Domain.Authorization;
@@ -56,7 +57,7 @@ public class HumanQuestionServiceTests
         People.AddAsync(Magnus, default).GetAwaiter().GetResult();
 
         var gateway = new ToolGateway(
-            new PolicyEngine(new RecordingAuditWriter(), PolicyRules.Default),
+            new PolicyEngine(new RecordingAuditWriter(), PolicyRules.Default, new NoOpOperationalControls()),
             new InMemoryToolCallStore(),
             new RecordingAuditWriter(),
             Clock);
@@ -412,15 +413,9 @@ public class HumanQuestionServiceTests
 
         public Task RecordSuccessAsync<TResult>(Guid recordId, TResult? value, DateTimeOffset now, CancellationToken ct)
         {
-            var index = _records.FindIndex(r => r.Id == recordId);
-            var existing = _records[index];
+            var existing = _records.Single(r => r.Id == recordId);
             var json = value is null ? null : JsonSerializer.Serialize(value);
-            _records[index] = existing with
-            {
-                Outcome = ToolCallOutcome.Succeeded,
-                ResultJson = json,
-                CompletedAt = now,
-            };
+            existing.Complete(ToolCallOutcome.Succeeded, json, now);
             return Task.CompletedTask;
         }
 
@@ -431,5 +426,27 @@ public class HumanQuestionServiceTests
         {
             return Task.FromResult(_records.Any(r => r.TaskId == taskId && r.Outcome == ToolCallOutcome.Unknown));
         }
+
+        public Task<int> ReconcileUnknownAsync(Guid taskId, DateTimeOffset now, CancellationToken ct)
+        {
+            var unknown = _records.Where(r => r.TaskId == taskId && r.Outcome == ToolCallOutcome.Unknown).ToList();
+            foreach (var record in unknown)
+                record.Complete(ToolCallOutcome.Succeeded, record.ResultJson, now);
+            return Task.FromResult(unknown.Count);
+        }
+    }
+
+    private sealed class NoOpOperationalControls : IOperationalControls
+    {
+        public Task PauseIntakeAsync(string actor, CancellationToken ct) => Task.CompletedTask;
+        public Task ResumeIntakeAsync(string actor, CancellationToken ct) => Task.CompletedTask;
+        public Task<bool> IsIntakePausedAsync(CancellationToken ct) => Task.FromResult(false);
+        public Task DisableIntegrationAsync(string name, string actor, CancellationToken ct) => Task.CompletedTask;
+        public Task EnableIntegrationAsync(string name, string actor, CancellationToken ct) => Task.CompletedTask;
+        public Task<bool> IsIntegrationDisabledAsync(string name, CancellationToken ct) => Task.FromResult(false);
+        public Task<bool> CancelTaskAsync(Guid taskId, string actor, CancellationToken ct) => Task.FromResult(false);
+        public Task RevokeAuthorizationAsync(Guid taskId, string actor, CancellationToken ct) => Task.CompletedTask;
+        public Task RetryStepAsync(Guid taskId, Guid stepId, string actor, CancellationToken ct) => Task.CompletedTask;
+        public Task ReconcileTaskAsync(Guid taskId, string actor, CancellationToken ct) => Task.CompletedTask;
     }
 }

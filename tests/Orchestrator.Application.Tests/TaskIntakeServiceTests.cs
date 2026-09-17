@@ -221,7 +221,7 @@ public sealed class TaskIntakeServiceTests
         public Task<bool> IsIntegrationDisabledAsync(string name, CancellationToken ct) =>
             Task.FromResult(_integrationDisabled.GetValueOrDefault(name, false));
 
-        public Task CancelTaskAsync(Guid taskId, string actor, CancellationToken ct) => Task.CompletedTask;
+        public Task<bool> CancelTaskAsync(Guid taskId, string actor, CancellationToken ct) => Task.FromResult(false);
 
         public Task RevokeAuthorizationAsync(Guid taskId, string actor, CancellationToken ct) => Task.CompletedTask;
 

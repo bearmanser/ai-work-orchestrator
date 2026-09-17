@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Orchestrator.Application.Gateway;
 using Orchestrator.Application.Operations;
 using Orchestrator.Application.Ports;
 using Orchestrator.Domain.Operations;
@@ -8,9 +9,16 @@ using Orchestrator.Infrastructure.Persistence;
 
 namespace Orchestrator.Infrastructure.Operations;
 
-/// <summary>Operational kill-switches backed by the `operational_flags` table.</summary>
+/// <summary>
+/// Operational kill-switches backed by the `operational_flags` table. Tool-call
+/// outcomes (the Unknown/reconcile gate) live in <see cref="IToolCallStore"/>, not
+/// here - that is the single store the <see cref="Gateway.ToolGateway"/> and the
+/// retry/reconcile paths both read and write, so there is exactly one place that
+/// data can disagree with itself.
+/// </summary>
 public sealed class EfOperationalControls(
-    OrchestratorDbContext db, IAuditWriter audit, TimeProvider clock) : IOperationalControls
+    OrchestratorDbContext db, IAuditWriter audit, IToolCallStore toolCallStore, TimeProvider clock)
+    : IOperationalControls
 {
     private const string IntakePausedKey = "intake.paused";
 
@@ -44,18 +52,25 @@ public sealed class EfOperationalControls(
             .Select(f => f.Value)
             .SingleOrDefaultAsync(ct);
 
-    public async Task CancelTaskAsync(Guid taskId, string actor, CancellationToken ct)
+    public async Task<bool> CancelTaskAsync(Guid taskId, string actor, CancellationToken ct)
     {
         var task = await db.Tasks.SingleOrDefaultAsync(t => t.Id == taskId, ct);
         if (task is null)
             throw new KeyNotFoundException($"Task {taskId} not found.");
 
         if (TaskStateMachine.IsTerminal(task.State))
-            return;
+            return false;
+
+        // Cancellation never undoes an already-published effect: it does not close a
+        // PR or revert a note. Capture, before the state changes underneath it,
+        // whether an external effect (an open PR) is what the caller needs to be
+        // told remains open.
+        var hadOpenPullRequest = task.State is TaskState.WatchingPullRequests or TaskState.AddressingFeedback;
 
         task.Fire(TaskTrigger.Cancelled, clock.GetUtcNow());
 
-        // Cancel pending/leased steps
+        // Stop pending/leased work; evidence already produced (artifacts, PRs) is
+        // retained untouched.
         var steps = await db.Steps
             .Where(s => s.TaskId == taskId && (s.Status == StepStatus.Pending || s.Status == StepStatus.Leased))
             .ToListAsync(ct);
@@ -64,7 +79,6 @@ public sealed class EfOperationalControls(
 
         await db.SaveChangesAsync(ct);
 
-        // Request job cancellation
         await audit.RecordAsync(new AuditEntry(
             Actor: actor,
             TaskId: taskId,
@@ -73,6 +87,8 @@ public sealed class EfOperationalControls(
             Outcome: "Success",
             CorrelationId: Guid.CreateVersion7().ToString(),
             Details: new Dictionary<string, string> { ["taskId"] = taskId.ToString() }), ct);
+
+        return hadOpenPullRequest;
     }
 
     public async Task RevokeAuthorizationAsync(Guid taskId, string actor, CancellationToken ct)
@@ -100,61 +116,45 @@ public sealed class EfOperationalControls(
         if (step is null)
             throw new KeyNotFoundException($"Step {stepId} not found.");
 
-        // Check for unknown tool call outcomes
-        var hasUnknownOutcome = await db.ToolCallRecords
-            .AnyAsync(r => r.TaskId == taskId && r.Outcome == ToolCallOutcome.Unknown, ct);
-
-        if (hasUnknownOutcome)
+        // Defense in depth: OperationalControlService already gates on this before
+        // calling us, but this type is public and must not be safe to misuse by
+        // calling it directly.
+        if (await toolCallStore.HasUnknownOutcomesAsync(taskId, ct))
             throw new InvalidOperationException($"Task {taskId} has unknown tool call outcomes; reconcile first.");
 
-        // Reset step to pending for retry - recreate step with pending status
-        var newStep = new Step(taskId, step.Capability, step.DependsOnStepId, step.InputArtifactId, clock.GetUtcNow());
-        newStep.AttemptCount = step.AttemptCount + 1;
-        db.Steps.Add(newStep);
+        step.RetryReset(clock.GetUtcNow());
         await db.SaveChangesAsync(ct);
 
         await audit.RecordAsync(new AuditEntry(
             Actor: actor,
             TaskId: taskId,
             Action: "operations.task.step.retry",
-            Reason: $"Step {stepId} of task {taskId} queued for retry (new step {newStep.Id}).",
+            Reason: $"Step {stepId} of task {taskId} reset for retry (attempt {step.AttemptCount}).",
             Outcome: "Success",
             CorrelationId: Guid.CreateVersion7().ToString(),
             Details: new Dictionary<string, string>
             {
                 ["taskId"] = taskId.ToString(),
-                ["oldStepId"] = stepId.ToString(),
-                ["newStepId"] = newStep.Id.ToString()
+                ["stepId"] = stepId.ToString(),
+                ["attemptCount"] = step.AttemptCount.ToString(),
             }), ct);
     }
 
     public async Task ReconcileTaskAsync(Guid taskId, string actor, CancellationToken ct)
     {
-        // Mark all unknown tool calls as succeeded
-        var unknownCalls = await db.ToolCallRecords
-            .Where(r => r.TaskId == taskId && r.Outcome == ToolCallOutcome.Unknown)
-            .ToListAsync(ct);
-
-        var now = clock.GetUtcNow();
-        foreach (var call in unknownCalls)
-        {
-            call.Outcome = ToolCallOutcome.Succeeded;
-            call.CompletedAt = now;
-        }
-
-        await db.SaveChangesAsync(ct);
+        var reconciledCount = await toolCallStore.ReconcileUnknownAsync(taskId, clock.GetUtcNow(), ct);
 
         await audit.RecordAsync(new AuditEntry(
             Actor: actor,
             TaskId: taskId,
             Action: "operations.task.reconcile",
-            Reason: $"Reconciled {unknownCalls.Count} unknown tool call outcome(s) for task {taskId}.",
+            Reason: $"Reconciled {reconciledCount} unknown tool call outcome(s) for task {taskId}.",
             Outcome: "Success",
             CorrelationId: Guid.CreateVersion7().ToString(),
             Details: new Dictionary<string, string>
             {
                 ["taskId"] = taskId.ToString(),
-                ["reconciledCount"] = unknownCalls.Count.ToString()
+                ["reconciledCount"] = reconciledCount.ToString(),
             }), ct);
     }
 

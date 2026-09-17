@@ -17,6 +17,14 @@ public interface IToolCallStore
     TResult? Deserialize<TResult>(ToolCallRecord record);
 
     Task<bool> HasUnknownOutcomesAsync(Guid taskId, CancellationToken ct);
+
+    /// <summary>
+    /// Resolves every <see cref="ToolCallOutcome.Unknown"/> outcome recorded for
+    /// <paramref name="taskId"/> and returns how many records were reconciled. This is
+    /// the single place the retry gate's data actually changes; callers must not mark
+    /// a task reconciled without going through here.
+    /// </summary>
+    Task<int> ReconcileUnknownAsync(Guid taskId, DateTimeOffset now, CancellationToken ct);
 }
 
 /// <summary>

@@ -431,6 +431,52 @@ namespace Orchestrator.Infrastructure.Persistence.Migrations
                     b.ToTable("admin_accounts", "orchestrator");
                 });
 
+            modelBuilder.Entity("Orchestrator.Domain.Memory.MemoryProposal", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasMaxLength(8000)
+                        .HasColumnType("character varying(8000)")
+                        .HasColumnName("content");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.PrimitiveCollection<string>("Evidence")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("evidence");
+
+                    b.Property<Guid?>("SourceTaskId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("source_task_id");
+
+                    b.Property<Guid?>("TaskId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("task_id");
+
+                    b.Property<string>("VaultPath")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("vault_path");
+
+                    b.Property<string>("VaultRevisionId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("vault_revision_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TaskId");
+
+                    b.ToTable("memory_proposals", "orchestrator");
+                });
+
             modelBuilder.Entity("Orchestrator.Domain.Messaging.InboundEvent", b =>
                 {
                     b.Property<Guid>("Id")

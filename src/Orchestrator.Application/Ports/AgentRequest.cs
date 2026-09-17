@@ -16,6 +16,7 @@ public enum EvidenceSource
     PullRequestComment,
     MeetingTranscript,
     DomainQuery,
+    TaskEvidence,
 }
 
 public sealed record EvidenceItem(

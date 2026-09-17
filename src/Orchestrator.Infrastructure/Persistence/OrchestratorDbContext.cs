@@ -8,6 +8,7 @@ using Orchestrator.Domain.Context;
 using Orchestrator.Domain.Evidence;
 using Orchestrator.Domain.Humans;
 using Orchestrator.Domain.Identity;
+using Orchestrator.Domain.Memory;
 using Orchestrator.Domain.Messaging;
 using Orchestrator.Domain.Operations;
 using Orchestrator.Domain.Plans;
@@ -24,6 +25,7 @@ public class OrchestratorDbContext(DbContextOptions<OrchestratorDbContext> optio
     public DbSet<WorkTask> Tasks => Set<WorkTask>();
     public DbSet<OutboxMessage> Outbox => Set<OutboxMessage>();
     public DbSet<InboundEvent> InboundEvents => Set<InboundEvent>();
+    public DbSet<MemoryProposal> MemoryProposals => Set<MemoryProposal>();
     public DbSet<PlanRevision> PlanRevisions => Set<PlanRevision>();
     public DbSet<OperationalFlag> OperationalFlags => Set<OperationalFlag>();
     public DbSet<Step> Steps => Set<Step>();

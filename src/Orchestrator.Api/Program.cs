@@ -26,6 +26,7 @@ using Orchestrator.Application.Gateway;
 using Orchestrator.Application.Humans;
 using Orchestrator.Application.Identity;
 using Orchestrator.Application.Meetings;
+using Orchestrator.Application.Memory;
 using Orchestrator.Application.Operations;
 using Orchestrator.Application.Plans;
 using Orchestrator.Application.Policy;
@@ -193,9 +194,15 @@ builder.Services.AddScoped<IStepHandler, FeedbackStepHandler>();
 var taskCompletionOptions = new TaskCompletionOptions();
 builder.Configuration.GetSection("Orchestrator:TaskCompletion").Bind(taskCompletionOptions);
 builder.Services.AddSingleton(taskCompletionOptions);
-builder.Services.AddScoped<TaskCompletionService>();
-builder.Services.AddScoped<FeedbackStepHandler>();
-builder.Services.AddScoped<IStepHandler, FeedbackStepHandler>();
+builder.Services.AddScoped<IMemoryProposalStore, EfMemoryProposalStore>();
+builder.Services.AddScoped<MemoryCurator>();
+builder.Services.AddScoped<IMemoryCurator>(sp => sp.GetRequiredService<MemoryCurator>());
+builder.Services.AddScoped<MemoryCurationStepHandler>();
+builder.Services.AddScoped<IStepHandler, MemoryCurationStepHandler>();
+
+var memoryCuratorOptions = new MemoryCuratorOptions();
+builder.Configuration.GetSection("Orchestrator:Memory").Bind(memoryCuratorOptions);
+builder.Services.AddSingleton(memoryCuratorOptions);
 builder.Services.AddScoped<IDomainDataSource>(sp => new NamedQueryDomainDataSource(
     new P1Options(Path.Combine(builder.Environment.ContentRootPath, "config", "p1-named-queries.json")),
     sp.GetRequiredService<ISecretStore>()));

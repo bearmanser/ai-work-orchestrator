@@ -181,7 +181,7 @@ public sealed class OperationalControlTests(PostgresFixture fixture, Orchestrato
 
         await PostWithCsrfAsync(client, "/api/admin/operations/pause-intake", null);
         await using var db = fixture.NewDbContext();
-        (await db.AuditEvents.AnyAsync(e => e.Action == "operations.pause-intake" && e.Actor == "magnus"))
+        (await db.AuditEvents.AnyAsync(e => e.Action == "operations.pause-intake" && e.Actor == "ops-magnus"))
             .ShouldBeTrue();
     }
 
@@ -209,9 +209,12 @@ public sealed class OperationalControlTests(PostgresFixture fixture, Orchestrato
     private async Task<HttpClient> AuthenticatedClientAsync()
     {
         var client = factory.CreateClient();
-        await SeedAdminAsync("magnus", "a-long-enough-passphrase");
+        // "magnus" is claimed by ProvisionAdminTests (which asserts it does not
+        // already exist) in this shared, un-reset-between-classes Postgres database -
+        // use a distinct login here, the same way AuthEndpointTests does.
+        await SeedAdminAsync("ops-magnus", "a-long-enough-passphrase");
         var login = await client.PostAsJsonAsync("/api/auth/login",
-            new { loginName = "magnus", password = "a-long-enough-passphrase" });
+            new { loginName = "ops-magnus", password = "a-long-enough-passphrase" });
         login.StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
         // The session cookie is Secure-only, so the client's default cookie
@@ -324,6 +327,27 @@ public sealed class OperationalControlTests(PostgresFixture fixture, Orchestrato
     {
         await using var db = fixture.NewDbContext();
         return await db.Tasks.CountAsync();
+    }
+
+    // A fresh DbContext per call, like every other helper here - this reads back
+    // what the endpoint actually committed rather than a cached view, which is the
+    // whole point of these assertions.
+    private async Task<bool> IsIntakePausedAsync()
+    {
+        await using var db = fixture.NewDbContext();
+        return await db.OperationalFlags
+            .Where(f => f.Key == "intake.paused")
+            .Select(f => f.Value)
+            .SingleOrDefaultAsync();
+    }
+
+    private async Task<bool> IsIntegrationDisabledAsync(string name)
+    {
+        await using var db = fixture.NewDbContext();
+        return await db.OperationalFlags
+            .Where(f => f.Key == $"integration.{name}.disabled")
+            .Select(f => f.Value)
+            .SingleOrDefaultAsync();
     }
 
     private async Task<WorkTask> LoadTaskAsync(Guid taskId)
@@ -442,7 +466,8 @@ public sealed class OperationalControlTests(PostgresFixture fixture, Orchestrato
         await using var db = fixture.NewDbContext();
         var envelope = await db.AuthorizationEnvelopes.SingleAsync(e => e.TaskId == taskId);
         var budget = await db.Budgets.SingleAsync(b => b.TaskId == taskId);
-        var engine = factory.Services.GetRequiredService<PolicyEngine>();
+        using var scope = factory.Services.CreateScope();
+        var engine = scope.ServiceProvider.GetRequiredService<PolicyEngine>();
         var request = new PolicyRequest(
             taskId, "magnus", action,
             resource ?? new ResourceScope.RepositoryResource(Guid.NewGuid(), "main"),
@@ -482,7 +507,7 @@ internal sealed class MetricCollector : IDisposable
                 listener.EnableMeasurementEvents(instrument);
             }
         };
-        _listener.SetMeasurementEventCallback<long>((instrument, value, tags, state) =>
+        _listener.SetMeasurementEventCallback<double>((instrument, value, tags, state) =>
         {
             var dict = new Dictionary<string, string?>();
             foreach (var t in tags)
@@ -496,5 +521,9 @@ internal sealed class MetricCollector : IDisposable
 
     public void Dispose() => _listener.Dispose();
 
-    internal sealed record Measurement(long Value, Dictionary<string, string?> Tags);
+    // orchestrator.task.duration is a Histogram<double> (seconds, fractional) - the
+    // collector must subscribe with the same numeric type MeterListener was told to
+    // instrument, or the callback for that type is never invoked and every
+    // measurement is silently dropped.
+    internal sealed record Measurement(double Value, Dictionary<string, string?> Tags);
 }

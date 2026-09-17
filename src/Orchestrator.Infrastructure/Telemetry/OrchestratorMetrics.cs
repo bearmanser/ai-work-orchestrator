@@ -9,7 +9,14 @@ namespace Orchestrator.Infrastructure.Telemetry;
 /// </summary>
 public static class OrchestratorMetrics
 {
-    public const string MeterName = "Orchestrator";
+    /// <summary>
+    /// Shared with <c>Orchestrator.Domain.Tasks.TaskPhaseMetrics</c>, which owns the
+    /// "orchestrator.task.duration" histogram - that instrument has to live in Domain
+    /// so <see cref="Orchestrator.Domain.Tasks.WorkTask.Fire"/> can record it directly,
+    /// with no DI container required, but everything is still exported under one
+    /// meter name.
+    /// </summary>
+    public const string MeterName = "OrchestratorMetrics";
 
     private static readonly Meter _meter = new(MeterName);
 
@@ -19,10 +26,6 @@ public static class OrchestratorMetrics
 
     public static readonly Counter<long> TaskFailed =
         _meter.CreateCounter<long>("orchestrator.task.failed", "tasks", "Number of tasks failed by capability");
-
-    // Task duration by phase (executing vs waiting_for_human vs waiting_for_review)
-    public static readonly Histogram<double> TaskDuration =
-        _meter.CreateHistogram<double>("orchestrator.task.duration", "seconds", "Task duration split by phase");
 
     // Retries and reconciliations
     public static readonly Counter<long> StepRetries =

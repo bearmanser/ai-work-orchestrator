@@ -53,7 +53,7 @@ public class ToolGatewayTests
             new PolicyEngine(new RecordingAuditWriter(), PolicyRules.Default, new NoOpOperationalControls()),
             effectiveStore,
             new RecordingAuditWriter(),
-            TimeProvider.System);
+            new ManualTimeProvider(Now));
     }
 
     [Fact]
@@ -193,6 +193,17 @@ public class ToolGatewayTests
                 record.Complete(ToolCallOutcome.Succeeded, record.ResultJson, now);
             return Task.FromResult(unknown.Count);
         }
+    }
+
+    /// <summary>
+    /// A fixed clock so envelope expiry is judged against the same <see cref="Now"/>
+    /// the test fixtures were built with, not the real wall clock - using
+    /// TimeProvider.System here made every test in this file flake the day after it
+    /// was written, once real time passed the envelope's fixed ExpiresAt.
+    /// </summary>
+    private sealed class ManualTimeProvider(DateTimeOffset now) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => now;
     }
 
     private sealed class NoOpOperationalControls : IOperationalControls

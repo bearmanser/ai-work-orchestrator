@@ -4,6 +4,8 @@ import { BrowserRouter, Link, Navigate, Route, Routes, useNavigate, useParams } 
 import { LoginPage } from "./features/auth/LoginPage";
 import { RequireSession } from "./features/auth/RequireSession";
 import { useSession } from "./features/auth/useSession";
+import { RepositoryDetailPage } from "./features/repositories/RepositoryDetailPage";
+import { RepositoryListPage } from "./features/repositories/RepositoryListPage";
 import { TaskDetailPage } from "./features/tasks/TaskDetailPage";
 import { TaskListPage } from "./features/tasks/TaskListPage";
 
@@ -37,6 +39,9 @@ function HomePage() {
       <p>
         <Link to="/tasks">View tasks</Link>
       </p>
+      <p>
+        <Link to="/repositories">View repositories</Link>
+      </p>
       <button type="button" onClick={handleLogout}>
         Sign out
       </button>
@@ -52,6 +57,14 @@ function TaskDetailRoute() {
   return <TaskDetailPage taskId={taskId} />;
 }
 
+function RepositoryDetailRoute() {
+  const { repositoryId } = useParams<{ repositoryId: string }>();
+  if (repositoryId === undefined) {
+    return <Navigate to="/repositories" replace />;
+  }
+  return <RepositoryDetailPage repositoryId={repositoryId} />;
+}
+
 export function App() {
   const [client] = useState(() => queryClient);
   return (
@@ -63,6 +76,8 @@ export function App() {
             <Route path="/" element={<HomePage />} />
             <Route path="/tasks" element={<TaskListPage />} />
             <Route path="/tasks/:taskId" element={<TaskDetailRoute />} />
+            <Route path="/repositories" element={<RepositoryListPage />} />
+            <Route path="/repositories/:repositoryId" element={<RepositoryDetailRoute />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

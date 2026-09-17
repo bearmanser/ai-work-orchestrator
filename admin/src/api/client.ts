@@ -37,8 +37,13 @@ function resolveUrl(path: string): string {
   return path;
 }
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const headers: Record<string, string> = {};
+async function request<T>(
+  method: string,
+  path: string,
+  body?: unknown,
+  extraHeaders?: Record<string, string>,
+): Promise<T> {
+  const headers: Record<string, string> = { ...extraHeaders };
   if (body !== undefined) {
     headers["Content-Type"] = "application/json";
   }
@@ -92,7 +97,10 @@ async function readDetail(response: Response): Promise<string> {
 export const apiClient = {
   get: <T>(path: string): Promise<T> => request<T>("GET", path),
   post: <T>(path: string, body?: unknown): Promise<T> => request<T>("POST", path, body),
-  put: <T>(path: string, body?: unknown): Promise<T> => request<T>("PUT", path, body),
+  // `headers` lets callers attach things like `If-Match` for optimistic-concurrency
+  // updates (see RepositoryEndpoints.Update) without every PUT needing to know about it.
+  put: <T>(path: string, body?: unknown, headers?: Record<string, string>): Promise<T> =>
+    request<T>("PUT", path, body, headers),
   patch: <T>(path: string, body?: unknown): Promise<T> => request<T>("PATCH", path, body),
   del: <T>(path: string): Promise<T> => request<T>("DELETE", path),
 };

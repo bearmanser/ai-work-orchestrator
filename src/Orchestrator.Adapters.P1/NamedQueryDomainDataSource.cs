@@ -1,5 +1,6 @@
 using Npgsql;
 using Orchestrator.Application.Ports;
+using Orchestrator.Domain.Evidence;
 
 namespace Orchestrator.Adapters.P1;
 

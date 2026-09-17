@@ -2,6 +2,7 @@ using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 using Orchestrator.Adapters.P1;
 using Orchestrator.Application.Ports;
+using Orchestrator.Domain.Evidence;
 using Orchestrator.Infrastructure.Persistence;
 using Orchestrator.Infrastructure.Secrets;
 using Shouldly;

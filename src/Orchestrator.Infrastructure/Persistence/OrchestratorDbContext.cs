@@ -11,6 +11,7 @@ using Orchestrator.Domain.Identity;
 using Orchestrator.Domain.Messaging;
 using Orchestrator.Domain.Operations;
 using Orchestrator.Domain.Plans;
+using Orchestrator.Domain.PullRequests;
 using Orchestrator.Domain.Repositories;
 using Orchestrator.Domain.Steps;
 using Orchestrator.Domain.Tasks;
@@ -26,6 +27,7 @@ public class OrchestratorDbContext(DbContextOptions<OrchestratorDbContext> optio
     public DbSet<PlanRevision> PlanRevisions => Set<PlanRevision>();
     public DbSet<OperationalFlag> OperationalFlags => Set<OperationalFlag>();
     public DbSet<Step> Steps => Set<Step>();
+    public DbSet<PullRequestTracking> PullRequestTracking => Set<PullRequestTracking>();
     public DbSet<AgentRun> AgentRuns => Set<AgentRun>();
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
     public DbSet<BudgetLedger> Budgets => Set<BudgetLedger>();
@@ -45,6 +47,14 @@ public class OrchestratorDbContext(DbContextOptions<OrchestratorDbContext> optio
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(OrchestratorDbContext).Assembly);
 
         foreach (var entity in modelBuilder.Model.GetEntityTypes())
+        {
+            // Properties of JSON-mapped owned types (e.g. the feedback items stored
+            // inside a pull request tracking row) take JSON property names, not
+            // column names; giving them column names breaks model building. The
+            // owning configuration marks such types with this annotation.
+            if (entity.FindAnnotation("Orchestrator:SkipSnakeCase") is not null)
+                continue;
+
             foreach (var property in entity.GetProperties())
             {
                 // Identity-based escape hatch: a property whose column name has already
@@ -62,6 +72,7 @@ public class OrchestratorDbContext(DbContextOptions<OrchestratorDbContext> optio
 
                 property.SetColumnName(ToSnakeCase(property.Name));
             }
+        }
     }
 
     private static string ToSnakeCase(string name)

@@ -79,7 +79,7 @@ public sealed class ImplementationStepHandler(
 
             var handle = await git.PrepareAsync(new WorkspaceRequest(
                 task.Id, change.RepositoryId, profile.RemoteUrl, profile.DefaultBranch,
-                $"orchestrator/{task.Id:N}", new SecretRef($"git.{profile.Name.ToLowerInvariant()}.credential")), ct);
+                GitBranchNaming.WorkBranchFor(task.Id), new SecretRef($"git.{profile.Name.ToLowerInvariant()}.credential")), ct);
 
             var request = new AgentRequest(
                 task.Id,

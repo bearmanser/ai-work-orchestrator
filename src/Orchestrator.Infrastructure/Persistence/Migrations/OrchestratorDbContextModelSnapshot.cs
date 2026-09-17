@@ -673,6 +673,64 @@ namespace Orchestrator.Infrastructure.Persistence.Migrations
                     b.ToTable("plan_revisions", "orchestrator");
                 });
 
+            modelBuilder.Entity("Orchestrator.Domain.PullRequests.PullRequestTracking", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CurrentHeadCommit")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("current_head_commit");
+
+                    b.Property<bool>("IsApproved")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_approved");
+
+                    b.Property<bool>("IsRequired")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_required");
+
+                    b.Property<DateTimeOffset>("LastReconciledAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_reconciled_at");
+
+                    b.Property<int>("PullRequestId")
+                        .HasColumnType("integer")
+                        .HasColumnName("pull_request_id");
+
+                    b.Property<Guid>("RepositoryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("repository_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("TaskId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("task_id");
+
+                    b.Property<string>("Url")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("url");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TaskId");
+
+                    b.HasIndex("TaskId", "RepositoryId")
+                        .IsUnique();
+
+                    b.ToTable("pull_request_tracking", "orchestrator");
+                });
+
             modelBuilder.Entity("Orchestrator.Domain.Repositories.RepositoryProfile", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1090,6 +1148,44 @@ namespace Orchestrator.Infrastructure.Persistence.Migrations
 
                     b.Navigation("Limits")
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Orchestrator.Domain.PullRequests.PullRequestTracking", b =>
+                {
+                    b.OwnsMany("Orchestrator.Domain.PullRequests.FeedbackItem", "Feedback", b1 =>
+                        {
+                            b1.Property<Guid>("PullRequestTrackingId");
+
+                            b1.Property<int>("__synthesizedOrdinal")
+                                .ValueGeneratedOnAdd();
+
+                            b1.Property<string>("AuthorId")
+                                .IsRequired();
+
+                            b1.Property<int>("Handling");
+
+                            b1.Property<string>("HeadCommitWhenRaised")
+                                .IsRequired();
+
+                            b1.Property<string>("Text")
+                                .IsRequired()
+                                .HasMaxLength(4000);
+
+                            b1.Property<int>("ThreadId");
+
+                            b1.HasKey("PullRequestTrackingId", "__synthesizedOrdinal");
+
+                            b1.ToTable("pull_request_tracking", "orchestrator");
+
+                            b1
+                                .ToJson("Feedback")
+                                .HasAnnotation("Orchestrator:SkipSnakeCase", true);
+
+                            b1.WithOwner()
+                                .HasForeignKey("PullRequestTrackingId");
+                        });
+
+                    b.Navigation("Feedback");
                 });
 
             modelBuilder.Entity("Orchestrator.Domain.Repositories.RepositoryProfile", b =>

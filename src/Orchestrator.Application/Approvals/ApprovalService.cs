@@ -88,6 +88,8 @@ public sealed class ApprovalService(IApprovalStore store, IAuditWriter auditWrit
         return approval;
     }
 
+    public Task<IReadOnlyList<Approval>> ListAsync(CancellationToken ct) => store.ListAsync(ct);
+
     public async Task<ApprovalResult> RecordDecisionAsync(
         Guid approvalId,
         string approverId,

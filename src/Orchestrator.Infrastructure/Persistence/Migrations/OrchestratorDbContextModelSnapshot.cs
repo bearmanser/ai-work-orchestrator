@@ -616,6 +616,63 @@ namespace Orchestrator.Infrastructure.Persistence.Migrations
                     b.ToTable("tool_call_records", "orchestrator");
                 });
 
+            modelBuilder.Entity("Orchestrator.Domain.Plans.PlanRevision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ConfirmationStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("confirmation_status");
+
+                    b.Property<DateTimeOffset?>("ConfirmedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("confirmed_at");
+
+                    b.Property<Guid?>("ConfirmedByPersonId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("confirmed_by_person_id");
+
+                    b.Property<string>("ContentHash")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("content_hash");
+
+                    b.Property<string>("ContentJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("content_json");
+
+                    b.Property<Guid?>("ContextSnapshotId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("context_snapshot_id");
+
+                    b.Property<int>("RevisionNumber")
+                        .HasColumnType("integer")
+                        .HasColumnName("revision_number");
+
+                    b.Property<Guid?>("SupersededByRevisionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("superseded_by_revision_id");
+
+                    b.Property<Guid>("TaskId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("task_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ContentHash");
+
+                    b.HasIndex("TaskId", "RevisionNumber")
+                        .IsUnique();
+
+                    b.ToTable("plan_revisions", "orchestrator");
+                });
+
             modelBuilder.Entity("Orchestrator.Domain.Repositories.RepositoryProfile", b =>
                 {
                     b.Property<Guid>("Id")

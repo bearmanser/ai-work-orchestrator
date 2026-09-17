@@ -16,6 +16,7 @@ public static class TaskStateMachine
 
         [(TaskState.WaitingForPlanConfirmation, TaskTrigger.PlanRevisionRequested)] = TaskState.Planning,
         [(TaskState.WaitingForPlanConfirmation, TaskTrigger.PlanConfirmed)] = TaskState.Ready,
+        [(TaskState.WaitingForPlanConfirmation, TaskTrigger.PlanPosted)] = TaskState.WaitingForPlanConfirmation,
 
         [(TaskState.Ready, TaskTrigger.WorkDispatched)] = TaskState.Running,
 

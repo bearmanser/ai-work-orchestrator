@@ -10,6 +10,7 @@ using Orchestrator.Domain.Humans;
 using Orchestrator.Domain.Identity;
 using Orchestrator.Domain.Messaging;
 using Orchestrator.Domain.Operations;
+using Orchestrator.Domain.Plans;
 using Orchestrator.Domain.Repositories;
 using Orchestrator.Domain.Steps;
 using Orchestrator.Domain.Tasks;
@@ -22,6 +23,7 @@ public class OrchestratorDbContext(DbContextOptions<OrchestratorDbContext> optio
     public DbSet<WorkTask> Tasks => Set<WorkTask>();
     public DbSet<OutboxMessage> Outbox => Set<OutboxMessage>();
     public DbSet<InboundEvent> InboundEvents => Set<InboundEvent>();
+    public DbSet<PlanRevision> PlanRevisions => Set<PlanRevision>();
     public DbSet<OperationalFlag> OperationalFlags => Set<OperationalFlag>();
     public DbSet<Step> Steps => Set<Step>();
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();

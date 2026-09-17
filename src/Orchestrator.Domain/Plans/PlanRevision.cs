@@ -39,7 +39,30 @@ public sealed class PlanRevision
     public Guid Id { get; private set; }
     public Guid TaskId { get; private set; }
     public int RevisionNumber { get; private set; }
-    public PlanContent Content { get; private set; } = null!;
+
+    /// <summary>
+    /// The persisted form of <see cref="Content"/>: canonical JSON in a jsonb
+    /// column. EF owns this string; readers go through <see cref="Content"/>.
+    /// </summary>
+    public string ContentJson { get; private set; } = null!;
+
+    private PlanContent? _content;
+
+    /// <summary>
+    /// The plan content, hydrated from <see cref="ContentJson"/> on first access
+    /// after EF materialization.
+    /// </summary>
+    public PlanContent Content
+    {
+        get => _content ??= JsonSerializer.Deserialize<PlanContent>(ContentJson)
+            ?? throw new InvalidOperationException("Stored plan content is not valid JSON.");
+        private set
+        {
+            _content = value;
+            ContentJson = JsonSerializer.Serialize(value);
+        }
+    }
+
     public string ContentHash { get; private set; } = null!;
     public ConfirmationStatus ConfirmationStatus { get; private set; }
     public Guid? ConfirmedByPersonId { get; private set; }

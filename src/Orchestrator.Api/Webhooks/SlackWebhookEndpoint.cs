@@ -24,7 +24,6 @@ public static class SlackWebhookEndpoint
     public static void Map(WebApplication app)
     {
         app.MapPost("/webhooks/slack", HandleAsync).AllowAnonymous();
-        app.MapPost("/webhooks/slack/interactive", HandleInteractiveAsync).AllowAnonymous();
     }
 
     private static async Task<IResult> HandleAsync(
@@ -104,39 +103,6 @@ public static class SlackWebhookEndpoint
             await db.SaveChangesAsync(ct);
             return Results.Ok();
         }
-    }
-
-    private static async Task<IResult> HandleInteractiveAsync(
-        HttpContext http,
-        ISecretStore secrets,
-        TimeProvider clock,
-        CancellationToken ct)
-    {
-        string signingSecret;
-        try
-        {
-            signingSecret = await secrets.GetAsync(
-                new SecretRef("slack.signing-secret"), ct);
-        }
-        catch (SecretNotFoundException)
-        {
-            return Results.StatusCode(StatusCodes.Status500InternalServerError);
-        }
-
-        http.Request.EnableBuffering();
-        string rawBody;
-        using (var reader = new StreamReader(http.Request.Body, Encoding.UTF8))
-            rawBody = await reader.ReadToEndAsync(ct);
-
-        if (!SlackSignatureVerifier.Verify(
-                signingSecret,
-                http.Request.Headers["X-Slack-Request-Timestamp"].ToString(),
-                http.Request.Headers["X-Slack-Signature"].ToString(),
-                rawBody,
-                clock.GetUtcNow()))
-            return Results.Unauthorized();
-
-        return Results.Ok();
     }
 
     private static bool IsUrlVerification(JsonElement root, out string? challenge)

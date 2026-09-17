@@ -31,7 +31,8 @@ public class TaskStateMachineTests
         to.ShouldBe(expected);
     }
 
-    // The four transitions PROJECT_PLAN.md section 5 omits.
+    // The four transitions PROJECT_PLAN.md section 5 omits, plus the re-post
+    // self-loop a revised plan needs while its predecessor awaits confirmation.
     [Theory]
     [InlineData(TaskState.WaitingForActionApproval, TaskTrigger.ActionDenied, TaskState.Planning)]
     [InlineData(TaskState.WaitingForHuman, TaskTrigger.QuestionTimedOut, TaskState.Suspended)]
@@ -40,6 +41,7 @@ public class TaskStateMachineTests
     [InlineData(TaskState.Running, TaskTrigger.BaselineDriftDetected, TaskState.Planning)]
     [InlineData(TaskState.Verifying, TaskTrigger.BaselineDriftDetected, TaskState.Planning)]
     [InlineData(TaskState.WatchingPullRequests, TaskTrigger.BaselineDriftDetected, TaskState.Planning)]
+    [InlineData(TaskState.WaitingForPlanConfirmation, TaskTrigger.PlanPosted, TaskState.WaitingForPlanConfirmation)]
     public void TryTransition_GapFillingTransition_Succeeds(TaskState from, TaskTrigger trigger, TaskState expected)
     {
         TaskStateMachine.TryTransition(from, trigger, out var to).ShouldBeTrue();

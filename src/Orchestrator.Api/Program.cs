@@ -17,6 +17,7 @@ using Orchestrator.Application.Humans;
 using Orchestrator.Application.Identity;
 using Orchestrator.Application.Meetings;
 using Orchestrator.Application.Operations;
+using Orchestrator.Application.Plans;
 using Orchestrator.Application.Policy;
 using Orchestrator.Application.Ports;
 using Orchestrator.Application.Repositories;
@@ -194,6 +195,7 @@ OperationsEndpoints.Map(app);
 TaskOperationsEndpoints.Map(app);
 AzureDevOpsWebhookEndpoint.Map(app);
 SlackWebhookEndpoint.Map(app);
+SlackInteractiveEndpoint.Map(app);
 TaskQueryEndpoints.Map(app);
 app.UseHangfireDashboard("/hangfire", new DashboardOptions
 {

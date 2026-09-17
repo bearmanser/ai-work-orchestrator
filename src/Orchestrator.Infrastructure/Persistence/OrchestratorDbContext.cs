@@ -46,6 +46,8 @@ public class OrchestratorDbContext(DbContextOptions<OrchestratorDbContext> optio
     public DbSet<ToolCallRecord> ToolCallRecords => Set<ToolCallRecord>();
     public DbSet<PolicyConfigurationRow> PolicyConfigurations => Set<PolicyConfigurationRow>();
     public DbSet<IntegrationSetting> IntegrationSettings => Set<IntegrationSetting>();
+    public DbSet<PersonIdentity> People => Set<PersonIdentity>();
+    public DbSet<OwnershipEntry> OwnershipEntries => Set<OwnershipEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

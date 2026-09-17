@@ -431,6 +431,81 @@ namespace Orchestrator.Infrastructure.Persistence.Migrations
                     b.ToTable("admin_accounts", "orchestrator");
                 });
 
+            modelBuilder.Entity("Orchestrator.Domain.Identity.OwnershipEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<bool>("CanApproveRestrictedActions")
+                        .HasColumnType("boolean")
+                        .HasColumnName("can_approve_restricted_actions");
+
+                    b.Property<bool>("CanConfirmPlans")
+                        .HasColumnType("boolean")
+                        .HasColumnName("can_confirm_plans");
+
+                    b.Property<Guid>("OwnerPersonId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("owner_person_id");
+
+                    b.Property<string>("Subject")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("subject");
+
+                    b.Property<string>("SubjectKey")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("subject_key");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Subject", "SubjectKey");
+
+                    b.ToTable("ownership_entries", "orchestrator");
+                });
+
+            modelBuilder.Entity("Orchestrator.Domain.Identity.PersonIdentity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AzureDevOpsId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("azure_dev_ops_id");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("display_name");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("email");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("SlackUserId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("slack_user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SlackUserId");
+
+                    b.ToTable("people", "orchestrator");
+                });
+
             modelBuilder.Entity("Orchestrator.Domain.Integrations.IntegrationSetting", b =>
                 {
                     b.Property<string>("Name")

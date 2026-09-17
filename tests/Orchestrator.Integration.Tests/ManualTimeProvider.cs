@@ -8,8 +8,11 @@ namespace Orchestrator.Integration.Tests;
 /// FakeTimeProvider, so this small shared type avoids adding a new package
 /// dependency. Originally added alongside the outbox tests (Task 4); shared here so
 /// later test classes (e.g. lease and step-execution tests) do not duplicate it.
+/// Public (rather than internal) so the acceptance suite (Task 49), which needs the
+/// exact same controllable clock across a genuine host restart, references this
+/// project instead of adding a second fake-clock type.
 /// </summary>
-internal sealed class ManualTimeProvider(DateTimeOffset now) : TimeProvider
+public sealed class ManualTimeProvider(DateTimeOffset now) : TimeProvider
 {
     private DateTimeOffset _now = now;
 

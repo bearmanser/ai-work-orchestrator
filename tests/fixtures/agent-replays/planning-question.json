@@ -1,0 +1,17 @@
+{
+  "Result": {
+    "Status": "Succeeded",
+    "Provider": "replay",
+    "Model": "replay-model",
+    "BaselineCommit": "replay",
+    "ResultCommit": null,
+    "DiffArtifactId": null,
+    "ClaimedChecks": [],
+    "UnresolvedQuestions": [],
+    "Limitations": [],
+    "Usage": { "CostUsd": 0.10, "Duration": "00:00:05", "InputTokens": 100, "OutputTokens": 50 },
+    "FailureDetail": null,
+    "OutputText": "Plan:\n```json\n{\n  \"objective\": \"add a GET endpoint\",\n  \"scope\": [\"backend\"],\n  \"exclusions\": [],\n  \"approach\": \"Add a read endpoint.\",\n  \"repositoryChanges\": [\n    { \"repositoryId\": \"__REPOSITORY_ID__\", \"repositoryName\": \"backend\", \"intent\": \"Change\", \"baselineCommit\": \"__BASELINE_COMMIT__\" }\n  ],\n  \"tests\": [\"dotnet test\"],\n  \"risks\": [],\n  \"openQuestions\": [],\n  \"providers\": [\"replay\"],\n  \"p1Checks\": [],\n  \"questions\": [\n    { \"question\": \"Should cancelled orders be included?\", \"domain\": null }\n  ]\n}\n```\n"
+  },
+  "Files": []
+}

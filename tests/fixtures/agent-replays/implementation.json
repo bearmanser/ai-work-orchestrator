@@ -1,0 +1,19 @@
+{
+  "Result": {
+    "Status": "Succeeded",
+    "Provider": "replay",
+    "Model": "replay-model",
+    "BaselineCommit": "replay",
+    "ResultCommit": null,
+    "DiffArtifactId": null,
+    "ClaimedChecks": [{ "Command": "dotnet test", "ClaimedPassed": true }],
+    "UnresolvedQuestions": [],
+    "Limitations": [],
+    "Usage": { "CostUsd": 0.25, "Duration": "00:00:10", "InputTokens": 200, "OutputTokens": 100 },
+    "FailureDetail": null,
+    "OutputText": "Implemented the GET endpoint."
+  },
+  "Files": [
+    { "Path": "endpoint.txt", "Content": "GET /widgets added by the replay agent.\n" }
+  ]
+}

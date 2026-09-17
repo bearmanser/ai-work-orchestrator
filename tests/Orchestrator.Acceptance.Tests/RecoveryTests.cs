@@ -1,4 +1,5 @@
 using Orchestrator.Application.Gateway;
+using Orchestrator.Domain.Authorization;
 using Orchestrator.Domain.Tasks;
 using Shouldly;
 
@@ -47,11 +48,33 @@ public sealed class RecoveryTests(AcceptanceHost Host) : IClassFixture<Acceptanc
     {
         await Host.ResetAsync();
         var (taskId, hash) = await Host.RunToPlanConfirmationAsync();
+        var approvalBeforeRestart = await Host.ApprovalForTaskAsync(taskId);
+
         await Host.RestartAsync();
 
         var task = await Host.LoadTaskAsync(taskId);
         task.State.ShouldBe(TaskState.WaitingForPlanConfirmation);
         (await Host.CurrentPlanHashAsync(taskId)).ShouldBe(hash);
+
+        // The same restart-survival property already proven for people and
+        // ownership (IPersonStore/IOwnershipStore, see task-49-report.md)
+        // applies to approvals: the pending approval this task's plan
+        // confirmation created must still be readable, with the same
+        // requested-from approver list, after a genuine process restart -
+        // not just present, but still enforceable as a rule.
+        var approvalAfterRestart = await Host.ApprovalForTaskAsync(taskId);
+        approvalAfterRestart.Id.ShouldBe(approvalBeforeRestart.Id);
+        approvalAfterRestart.Decision.ShouldBe(ApprovalDecision.Pending);
+        approvalAfterRestart.RequestedFrom.ShouldBe(approvalBeforeRestart.RequestedFrom);
+        approvalAfterRestart.RequestedFrom.ShouldContain(Host.ConfirmerPersonId.ToString());
+
+        // Enforced, not just stored: an ineligible approver is still refused,
+        // and the eligible one recorded in RequestedFrom before the restart is
+        // still accepted, against the exact revision hash.
+        (await Host.ApproveAsync(approvalAfterRestart.Id, Host.RequesterPersonId.ToString(), hash))
+            .Accepted.ShouldBeFalse();
+        (await Host.ApproveAsync(approvalAfterRestart.Id, Host.ConfirmerPersonId.ToString(), hash))
+            .Accepted.ShouldBeTrue();
     }
 
     [Fact]

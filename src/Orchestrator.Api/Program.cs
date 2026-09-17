@@ -236,7 +236,9 @@ builder.Services.AddScoped<ImplementationStepHandler>();
 builder.Services.AddScoped<IStepHandler, ImplementationStepHandler>();
 builder.Services.AddScoped<VerificationStepHandler>();
 builder.Services.AddScoped<IStepHandler, VerificationStepHandler>();
-builder.Services.AddSingleton<IApprovalStore, InMemoryApprovalStore>();
+// Durable (Task 49 found the same restart-data-loss defect here that
+// IPersonStore/IOwnershipStore had - see task-49-report.md).
+builder.Services.AddScoped<IApprovalStore, Orchestrator.Infrastructure.Persistence.EfApprovalStore>();
 builder.Services.AddScoped<ApprovalService>();
 builder.Services.AddScoped<IPlanConfirmationStore, EfPlanConfirmationStore>();
 builder.Services.AddScoped<PlanConfirmationService>();

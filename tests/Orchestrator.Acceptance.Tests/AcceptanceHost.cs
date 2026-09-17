@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Orchestrator.Adapters.AzureDevOps;
+using Orchestrator.Application.Approvals;
 using Orchestrator.Application.Gateway;
 using Orchestrator.Application.Humans;
 using Orchestrator.Application.Identity;
@@ -465,6 +466,34 @@ public sealed class AcceptanceHost(PostgresFixture postgres) : IAsyncLifetime
             .OrderByDescending(r => r.RevisionNumber)
             .FirstAsync();
         return revision.ContentHash;
+    }
+
+    /// <summary>
+    /// The one <see cref="Approval"/> created for a task's plan confirmation
+    /// (<c>PlanConfirmationService.PostForConfirmationAsync</c> calls
+    /// <c>ApprovalService.RequestAsync</c> right after posting the revision).
+    /// Used to prove an approval survives a restart both as data
+    /// (<c>RequestedFrom</c>) and as an enforced rule (<see cref="ApproveAsync"/>
+    /// still honours it afterwards).
+    /// </summary>
+    public async Task<Approval> ApprovalForTaskAsync(Guid taskId)
+    {
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<OrchestratorDbContext>();
+        return await db.Approvals.AsNoTracking().SingleAsync(a => a.TaskId == taskId);
+    }
+
+    /// <summary>
+    /// Records an approval decision through the real <see cref="ApprovalService"/>,
+    /// exactly as <c>PlanConfirmationService.HandleInteractionAsync</c> would.
+    /// </summary>
+    public async Task<ApprovalResult> ApproveAsync(Guid approvalId, string approverId, string subjectHash)
+    {
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var approvals = scope.ServiceProvider.GetRequiredService<ApprovalService>();
+        var clock = scope.ServiceProvider.GetRequiredService<TimeProvider>();
+        return await approvals.RecordDecisionAsync(
+            approvalId, approverId, ApprovalDecision.Approved, subjectHash, clock.GetUtcNow(), default);
     }
 
     public async Task<int> AgentInvocationsForAsync(Guid taskId)

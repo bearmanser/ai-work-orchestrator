@@ -2,6 +2,7 @@ using Orchestrator.Application.Approvals;
 using Orchestrator.Application.Identity;
 using Orchestrator.Application.Ports;
 using Orchestrator.Application.Repositories;
+using Orchestrator.Application.Steps;
 using Orchestrator.Domain.Authorization;
 using Orchestrator.Domain.Plans;
 using Orchestrator.Domain.Repositories;
@@ -50,6 +51,7 @@ public sealed class PlanConfirmationService(
     IRepositoryProfileStore profiles,
     IChatGateway chat,
     IAuditWriter audit,
+    NextStepScheduler nextStep,
     TimeProvider clock,
     PlanConfirmationOptions options)
 {
@@ -159,7 +161,9 @@ public sealed class PlanConfirmationService(
             return new InteractionOutcome(false, decision.Reason);
 
         revision.Confirm(person.Id, now);
+        var from = task.State;
         task.Fire(TaskTrigger.PlanConfirmed, now);
+        await nextStep.ScheduleAsync(task, from, TaskTrigger.PlanConfirmed, ct);
         await store.SaveTaskAsync(task, ct);
 
         await audit.RecordAsync(new AuditEntry(

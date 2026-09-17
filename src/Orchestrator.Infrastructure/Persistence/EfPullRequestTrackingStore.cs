@@ -22,4 +22,8 @@ public sealed class EfPullRequestTrackingStore(OrchestratorDbContext db) : IPull
 
         await db.SaveChangesAsync(ct);
     }
+
+    public async Task<PullRequestTracking?> FindByPullRequestIdAsync(int pullRequestId, CancellationToken ct) =>
+        await db.PullRequestTracking
+            .SingleOrDefaultAsync(t => t.PullRequestId == pullRequestId, ct);
 }

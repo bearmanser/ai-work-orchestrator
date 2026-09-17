@@ -100,8 +100,14 @@ public sealed class AcceptanceHost(PostgresFixture postgres) : IAsyncLifetime
     public ManualTimeProvider Clock { get; } = new(DateTimeOffset.Parse("2026-09-17T09:00:00Z"));
     public Guid RepositoryId { get; private set; }
     public Guid ConfirmerPersonId { get; private set; }
-    public string ConfirmerSlackUserId { get; } = "U-confirmer";
-    public string RequesterSlackUserId { get; } = "U-requester";
+    // Unique per host instance, like _repositoryName above: `people` is one of the tables
+    // ResetAsync deliberately does NOT truncate (see its remarks), and every acceptance test
+    // class in the shared-Postgres run seeds its own confirmer/requester - a fixed slack user id
+    // here would mean IdentityResolver.ResolveBySlackUserAsync (used for real by
+    // AcceptanceHost.ConfirmPlanAsync) could resolve a *different* class's person once more than
+    // one class has run against the same database.
+    public string ConfirmerSlackUserId { get; } = "U-confirmer-" + Guid.NewGuid().ToString("N")[..8];
+    public string RequesterSlackUserId { get; } = "U-requester-" + Guid.NewGuid().ToString("N")[..8];
     public Guid RequesterPersonId { get; private set; }
 
     private string ConnectionString => _postgres.ConnectionString;
@@ -315,6 +321,37 @@ public sealed class AcceptanceHost(PostgresFixture postgres) : IAsyncLifetime
             await using var runScope = _factory.Services.CreateAsyncScope();
             await runScope.ServiceProvider.GetRequiredService<StepExecutionJob>().RunAsync(stepId.Value, default);
         }
+    }
+
+    /// <summary>Drains the outbox, then runs any still-Pending step directly. Covers
+    /// both the normal chained-step path (outbox draining alone already cascades
+    /// through every step NextStepScheduler creates, since each new step.dispatch
+    /// message becomes eligible in the next DispatchBatchAsync iteration) and steps
+    /// seeded without an outbox message.</summary>
+    public async Task DrainAsync()
+    {
+        await DrainOutboxAsync();
+        await DrainJobsAsync();
+    }
+
+    /// <summary>
+    /// Confirms a task's latest plan revision through the real
+    /// <see cref="PlanConfirmationService"/> - exactly what the Slack "Confirm"
+    /// button's interactive callback does - as the confirmer person seeded in
+    /// <see cref="InitializeAsync"/>. This, together with <see cref="NextStepScheduler"/>
+    /// (wired into <c>PlanConfirmationService.ConfirmAsync</c>), is what makes a
+    /// real task keep moving into implementation without any test-side step
+    /// seeding.
+    /// </summary>
+    public async Task ConfirmPlanAsync(Guid taskId)
+    {
+        var hash = await CurrentPlanHashAsync(taskId);
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var confirmations = scope.ServiceProvider.GetRequiredService<PlanConfirmationService>();
+        var outcome = await confirmations.HandleInteractionAsync(
+            new SlackInteraction("confirm_plan", hash, ConfirmerSlackUserId, null), default);
+        if (!outcome.Accepted)
+            throw new InvalidOperationException($"Plan confirmation was refused: {outcome.Reason}");
     }
 
     public async Task EnqueueDuplicateJobAsync(Guid taskId, string capability)

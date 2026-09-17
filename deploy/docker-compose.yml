@@ -50,8 +50,107 @@ services:
         aliases:
           - egress-proxy
 
-  # Task 50 adds an `api` service here (the orchestrator API itself). Leave room rather than
-  # restructuring this file for it.
+  # The orchestrator API host: the ASP.NET application plus its in-process Hangfire server
+  # (Program.cs's AddHangfireServer - there is no separate worker process). It runs
+  # `docker run` itself (SandboxedProcessRunner) against the *host's* Docker daemon to launch
+  # one throwaway container per agent invocation on the orchestrator-agent network below, which
+  # is why it needs the host's docker.sock, not its own nested daemon.
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/api.Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+      worker-image-builder:
+        condition: service_completed_successfully
+    ports:
+      - "8080:8080"
+    environment:
+      # NOTE: ORCHESTRATOR_CONNECTION_STRING is Program.cs's own fallback (read directly, not
+      # through ISecretStore/SecretRef like every other secret here) - it is exported by the
+      # entrypoint below from the orchestrator.database-connection secret file, not set here.
+      # SandboxedProcessRunner shells out to `docker run` for every agent invocation, against
+      # the daemon reachable through the socket mounted below - not a nested daemon in this
+      # container.
+      DOCKER_HOST: "unix:///var/run/docker.sock"
+      # Bind-mounted at the identical path on both sides on purpose (see the volumes list): the
+      # docker.sock below points at the *host's* dockerd, so any `-v <path>:...` this container's
+      # `docker run` calls pass must resolve on the host, not inside this container. Making the
+      # two paths identical is what lets the same GIT_ROOT/VAULT_ROOT value work for this
+      # container's own file access (LibGit2Workspace, FileSystemVaultStore) and for the paths
+      # it hands to a spawned sandbox container.
+      # Defaulted (not required) so bringing up an unrelated service - e.g. this repository's own
+      # SandboxedProcessRunnerTests, which only ever start egress-proxy - does not force every
+      # environment variable this file mentions anywhere to be set. A real `api` deployment must
+      # still override both via a .env file next to this one - see deploy/README.md.
+      ORCHESTRATOR__GIT__ROOT: "${GIT_ROOT:-/srv/orchestrator/git}"
+      ORCHESTRATOR__VAULT__ROOT: "${VAULT_ROOT:-/srv/orchestrator/vault}"
+      ORCHESTRATOR__ARTIFACTS__ROOT: /data/artifacts
+      # See deploy/README.md for the full secret list and how each SecretRef below maps to one
+      # of these variables (EnvironmentSecretStore uppercases the key and joins its dots with
+      # underscores). /run/secrets/<name> is the Docker secret file; each is read into the
+      # matching variable by docker-entrypoint.sh at container start rather than passed as
+      # plaintext compose environment values.
+      ORCHESTRATOR_SECRETS_DIR: /run/secrets
+    # git.<repository-name>.credential (used by LibGit2Workspace/PullRequestCreationStepHandler
+    # per repository - see RepositoryProfile) is not a fixed key, so it is provisioned per
+    # repository through the admin /api/admin/integrations endpoint rather than as a docker
+    # compose secret here - see deploy/README.md.
+    entrypoint: ["/bin/sh", "-c", "\
+      export ORCHESTRATOR_CONNECTION_STRING=$$(cat /run/secrets/orchestrator.database-connection); \
+      export ORCHESTRATOR_SECRET_SLACK_SIGNING_SECRET=$$(cat /run/secrets/slack.signing-secret); \
+      export ORCHESTRATOR_SECRET_SLACK_BOT_TOKEN=$$(cat /run/secrets/slack.bot-token); \
+      export ORCHESTRATOR_SECRET_AZUREDEVOPS_PAT=$$(cat /run/secrets/azuredevops.pat); \
+      export ORCHESTRATOR_SECRET_AZUREDEVOPS_WEBHOOK_PASSWORD=$$(cat /run/secrets/azuredevops.webhook-password); \
+      export ORCHESTRATOR_SECRET_ANTHROPIC_API_KEY=$$(cat /run/secrets/anthropic.api-key); \
+      export ORCHESTRATOR_SECRET_OPENAI_API_KEY=$$(cat /run/secrets/openai.api-key); \
+      export ORCHESTRATOR_SECRET_P1_STAGING_CONNECTION=$$(cat /run/secrets/p1.staging.connection); \
+      exec dotnet Orchestrator.Api.dll"]
+    secrets:
+      - orchestrator.database-connection
+      - slack.signing-secret
+      - slack.bot-token
+      - azuredevops.pat
+      - azuredevops.webhook-password
+      - anthropic.api-key
+      - openai.api-key
+      - p1.staging.connection
+    volumes:
+      - "${GIT_ROOT:-/srv/orchestrator/git}:${GIT_ROOT:-/srv/orchestrator/git}"
+      - "${VAULT_ROOT:-/srv/orchestrator/vault}:${VAULT_ROOT:-/srv/orchestrator/vault}"
+      - artifacts-data:/data/artifacts
+      - /var/run/docker.sock:/var/run/docker.sock
+    # Deliberately NOT attached to the orchestrator-agent network: SandboxedProcessRunner talks
+    # to sandbox containers through the docker.sock mount above (docker run/logs), not over that
+    # network - only the sandbox containers themselves and egress-proxy need to be on it.
+    networks:
+      default: {}
+    healthcheck:
+      # No dedicated /health route exists yet; "/" (Program.cs's MapGet("/", ...)) at least
+      # proves the host came up and its DI graph resolved.
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+secrets:
+  orchestrator.database-connection:
+    file: ./secrets/orchestrator.database-connection
+  slack.signing-secret:
+    file: ./secrets/slack.signing-secret
+  slack.bot-token:
+    file: ./secrets/slack.bot-token
+  azuredevops.pat:
+    file: ./secrets/azuredevops.pat
+  azuredevops.webhook-password:
+    file: ./secrets/azuredevops.webhook-password
+  anthropic.api-key:
+    file: ./secrets/anthropic.api-key
+  openai.api-key:
+    file: ./secrets/openai.api-key
+  p1.staging.connection:
+    file: ./secrets/p1.staging.connection
 
 networks:
   default: {}
@@ -65,3 +164,4 @@ networks:
 
 volumes:
   postgres-data: {}
+  artifacts-data: {}

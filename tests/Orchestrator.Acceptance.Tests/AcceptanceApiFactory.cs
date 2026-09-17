@@ -9,6 +9,7 @@ using Orchestrator.Adapters.AzureDevOps;
 using Orchestrator.Adapters.Git;
 using Orchestrator.Adapters.Slack;
 using Orchestrator.Application.Ports;
+using Orchestrator.Application.PullRequests;
 using Orchestrator.Application.Slack;
 using Orchestrator.Application.Steps;
 using Orchestrator.Domain.Budgets;
@@ -144,6 +145,17 @@ public sealed class AcceptanceApiFactory : WebApplicationFactory<Program>
                             using var jobScope = sp.CreateScope();
                             await jobScope.ServiceProvider.GetRequiredService<SlackEventStepHandler>()
                                 .HandleSlackEventAsync(inbound, ct);
+                        }
+                    }
+                    else if (message.MessageType == "pullrequest.event")
+                    {
+                        var prEvent = JsonSerializer.Deserialize<PullRequestEvent>(
+                            message.PayloadJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                        if (prEvent is not null)
+                        {
+                            using var jobScope = sp.CreateScope();
+                            await jobScope.ServiceProvider.GetRequiredService<PullRequestFeedbackRouter>()
+                                .HandleAsync(prEvent.EventType, prEvent.PullRequestId, ct);
                         }
                     }
                 },

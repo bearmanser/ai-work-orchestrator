@@ -13,6 +13,12 @@ public interface IPullRequestTrackingStore
     Task<IReadOnlyList<PullRequestTracking>> ListByTaskAsync(Guid taskId, CancellationToken ct);
 
     Task UpsertAsync(PullRequestTracking tracking, CancellationToken ct);
+
+    /// <summary>Finds the tracking row (and therefore the owning task) for a pull
+    /// request id, regardless of which task tracks it. Used to route an inbound PR
+    /// webhook event - which only carries the Azure DevOps pull request id - back to
+    /// the task that opened it.</summary>
+    Task<PullRequestTracking?> FindByPullRequestIdAsync(int pullRequestId, CancellationToken ct);
 }
 
 public sealed class InMemoryPullRequestTrackingStore : IPullRequestTrackingStore
@@ -38,6 +44,15 @@ public sealed class InMemoryPullRequestTrackingStore : IPullRequestTrackingStore
         }
 
         return Task.CompletedTask;
+    }
+
+    public Task<PullRequestTracking?> FindByPullRequestIdAsync(int pullRequestId, CancellationToken ct)
+    {
+        lock (gate)
+        {
+            return Task.FromResult(trackings.Values
+                .FirstOrDefault(t => t.PullRequestId == pullRequestId));
+        }
     }
 }
 

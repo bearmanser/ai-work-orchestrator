@@ -19,4 +19,6 @@ public sealed class EfPlanningScopeStore(OrchestratorDbContext db) : IPlanningSc
 
     public Task<BudgetLedger?> GetLedgerAsync(Guid taskId, CancellationToken ct) =>
         db.Budgets.FirstOrDefaultAsync(l => l.TaskId == taskId, ct);
+
+    public Task SaveLedgerAsync(BudgetLedger ledger, CancellationToken ct) => db.SaveChangesAsync(ct);
 }

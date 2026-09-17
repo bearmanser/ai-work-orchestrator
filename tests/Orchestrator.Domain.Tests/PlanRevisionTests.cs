@@ -62,5 +62,7 @@ public sealed class PlanRevisionTests
         Tests: ["dotnet test"],
         Risks: ["none known"],
         OpenQuestions: [],
-        Budget: Budget);
+        Budget: Budget,
+        Providers: [],
+        P1Checks: []);
 }

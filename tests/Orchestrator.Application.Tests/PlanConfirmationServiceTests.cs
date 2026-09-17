@@ -171,7 +171,9 @@ public sealed class PlanConfirmationServiceTests
         Tests: ["dotnet test"],
         Risks: [],
         OpenQuestions: openQuestions ?? [],
-        Budget: new BudgetLimits(25m, TimeSpan.FromHours(4), 10, 3));
+        Budget: new BudgetLimits(25m, TimeSpan.FromHours(4), 10, 3),
+        Providers: [],
+        P1Checks: []);
 
     private static PlannedRepositoryChange Change(string name, Guid id, string baseline = "abc") =>
         new(id, name, ChangeIntent.Change, baseline);

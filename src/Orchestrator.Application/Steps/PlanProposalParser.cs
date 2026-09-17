@@ -61,7 +61,9 @@ public static class PlanProposalParser
         Tests: OptionalStrings(root, "tests"),
         Risks: OptionalStrings(root, "risks"),
         OpenQuestions: OptionalStrings(root, "openQuestions"),
-        Budget: new BudgetLimits(0m, TimeSpan.Zero, 0, 0));
+        Budget: new BudgetLimits(0m, TimeSpan.Zero, 0, 0),
+        Providers: OptionalStrings(root, "providers"),
+        P1Checks: OptionalStrings(root, "p1Checks"));
 
     private static PlannedRepositoryChange ReadChange(JsonElement element)
     {

@@ -398,6 +398,8 @@ public sealed class PlanningStepHandlerTests
             return Task.FromResult(ledger);
         }
 
+        public Task SaveLedgerAsync(BudgetLedger ledger, CancellationToken ct) => Task.CompletedTask;
+
         public Task<PlanRevision> LatestRevisionAsync(Guid taskId) =>
             Task.FromResult(_revisions.Values
                 .Where(r => r.TaskId == taskId)

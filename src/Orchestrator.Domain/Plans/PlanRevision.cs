@@ -118,6 +118,8 @@ public sealed class PlanRevision
             Tests = content.Tests.ToArray(),
             Risks = content.Risks.ToArray(),
             OpenQuestions = content.OpenQuestions.ToArray(),
+            Providers = content.Providers.ToArray(),
+            P1Checks = content.P1Checks.ToArray(),
             Budget = new
             {
                 content.Budget.MaxUsd,

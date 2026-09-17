@@ -8,4 +8,5 @@ public interface IWorkspaceStore
     Task AddAsync(Workspace workspace, CancellationToken ct);
     Task<Workspace?> GetByIdAsync(string workspaceId, CancellationToken ct);
     Task RemoveAsync(Workspace workspace, CancellationToken ct);
+    Task<IReadOnlyList<Workspace>> ListForTaskAsync(Guid taskId, CancellationToken ct);
 }

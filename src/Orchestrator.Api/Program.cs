@@ -10,6 +10,7 @@ using Orchestrator.Adapters.Agent;
 using Orchestrator.Adapters.Agent.Providers;
 using Orchestrator.Adapters.Git;
 using Orchestrator.Adapters.Obsidian;
+using Orchestrator.Adapters.P1;
 using Orchestrator.Adapters.Slack;
 using Orchestrator.Api.Auth;
 using Orchestrator.Api.Dashboard;
@@ -17,6 +18,7 @@ using Orchestrator.Api.Endpoints;
 using Orchestrator.Api.Webhooks;
 using Orchestrator.Application.Agents;
 using Orchestrator.Application.Approvals;
+using Orchestrator.Application.Checks;
 using Orchestrator.Application.Context;
 using Orchestrator.Application.Gateway;
 using Orchestrator.Application.Humans;
@@ -168,6 +170,20 @@ builder.Services.AddScoped<AgentRouter>();
 
 builder.Services.AddScoped<IPlanningScopeStore, EfPlanningScopeStore>();
 builder.Services.AddScoped<IContextSnapshotStore, EfContextSnapshotStore>();
+builder.Services.AddScoped<IAgentRunStore, EfAgentRunStore>();
+builder.Services.AddScoped<IDomainDataSource>(sp => new NamedQueryDomainDataSource(
+    new P1Options(Path.Combine(builder.Environment.ContentRootPath, "config", "p1-named-queries.json")),
+    sp.GetRequiredService<ISecretStore>()));
+builder.Services.AddScoped<CheckRunner>();
+builder.Services.AddScoped<ISandboxExecutor, SandboxExecutorAdapter>();
+
+var checkRunnerOptions = new CheckRunnerOptions();
+builder.Configuration.GetSection("Orchestrator:Checks").Bind(checkRunnerOptions);
+builder.Services.AddSingleton(checkRunnerOptions);
+builder.Services.AddScoped<ImplementationStepHandler>();
+builder.Services.AddScoped<IStepHandler, ImplementationStepHandler>();
+builder.Services.AddScoped<VerificationStepHandler>();
+builder.Services.AddScoped<IStepHandler, VerificationStepHandler>();
 builder.Services.AddSingleton<IApprovalStore, InMemoryApprovalStore>();
 builder.Services.AddScoped<ApprovalService>();
 builder.Services.AddScoped<IPlanConfirmationStore, EfPlanConfirmationStore>();

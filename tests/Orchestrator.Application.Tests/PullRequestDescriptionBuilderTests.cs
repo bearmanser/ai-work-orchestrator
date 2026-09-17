@@ -107,7 +107,7 @@ public sealed class PullRequestDescriptionBuilderTests
         new PlanContent(
             "Add ordering endpoint", ["api"], [], "Add a controller plus tests",
             [], ["dotnet test"], [], [],
-            new BudgetLimits(25m, TimeSpan.FromHours(4), 10, 3)));
+            new BudgetLimits(25m, TimeSpan.FromHours(4), 10, 3), [], []));
 
     private static string Section(string description, string heading)
     {

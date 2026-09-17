@@ -858,6 +858,40 @@ namespace Orchestrator.Infrastructure.Persistence.Migrations
                     b.ToTable("workspaces", "orchestrator");
                 });
 
+            modelBuilder.Entity("Orchestrator.Domain.Steps.AgentRun", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("RepositoryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("repository_id");
+
+                    b.Property<string>("ResultJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("result_json");
+
+                    b.Property<Guid>("StepId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("step_id");
+
+                    b.Property<Guid>("TaskId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("task_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TaskId");
+
+                    b.ToTable("agent_runs", "orchestrator");
+                });
+
             modelBuilder.Entity("Orchestrator.Domain.Steps.Step", b =>
                 {
                     b.Property<Guid>("Id")

@@ -278,5 +278,10 @@ public sealed class ContextAssemblerTests
 
         public Task<BudgetLedger?> GetLedgerAsync(Guid id, CancellationToken ct) =>
             Task.FromResult<BudgetLedger?>(null);
+
+        public Task SaveLedgerAsync(BudgetLedger ledger, CancellationToken ct)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

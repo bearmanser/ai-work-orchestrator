@@ -23,4 +23,6 @@ public sealed record PlanContent(
     IReadOnlyList<string> Tests,
     IReadOnlyList<string> Risks,
     IReadOnlyList<string> OpenQuestions,
-    BudgetLimits Budget);
+    BudgetLimits Budget,
+    IReadOnlyList<string> Providers,
+    IReadOnlyList<string> P1Checks);

@@ -11,4 +11,5 @@ public interface IPlanningScopeStore
     Task SaveTaskAsync(WorkTask task, CancellationToken ct);
     Task<AuthorizationEnvelope?> GetEnvelopeAsync(Guid taskId, CancellationToken ct);
     Task<BudgetLedger?> GetLedgerAsync(Guid taskId, CancellationToken ct);
+    Task SaveLedgerAsync(BudgetLedger ledger, CancellationToken ct);
 }

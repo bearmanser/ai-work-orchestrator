@@ -26,6 +26,7 @@ public class OrchestratorDbContext(DbContextOptions<OrchestratorDbContext> optio
     public DbSet<PlanRevision> PlanRevisions => Set<PlanRevision>();
     public DbSet<OperationalFlag> OperationalFlags => Set<OperationalFlag>();
     public DbSet<Step> Steps => Set<Step>();
+    public DbSet<AgentRun> AgentRuns => Set<AgentRun>();
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
     public DbSet<BudgetLedger> Budgets => Set<BudgetLedger>();
     public DbSet<AuthorizationEnvelope> AuthorizationEnvelopes => Set<AuthorizationEnvelope>();

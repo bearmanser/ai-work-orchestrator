@@ -21,4 +21,7 @@ public sealed class EfWorkspaceStore(OrchestratorDbContext db) : IWorkspaceStore
         db.Workspaces.Remove(workspace);
         await db.SaveChangesAsync(ct);
     }
+
+    public async Task<IReadOnlyList<Workspace>> ListForTaskAsync(Guid taskId, CancellationToken ct) =>
+        await db.Workspaces.Where(w => w.TaskId == taskId).ToListAsync(ct);
 }

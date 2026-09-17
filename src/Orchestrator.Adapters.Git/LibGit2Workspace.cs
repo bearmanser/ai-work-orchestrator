@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using LibGit2Sharp;
 using LibGit2Sharp.Handlers;
 using Orchestrator.Application.Ports;
@@ -18,6 +19,28 @@ public sealed class LibGit2Workspace(
 {
     private readonly string _gitRoot = Path.GetFullPath(gitRoot);
 
+    /// <summary>
+    /// One repository's mirror is shared by every task that touches it
+    /// (<see cref="WorkspaceLayout.MirrorPath"/> is keyed by repository id
+    /// alone), but nothing previously serialized concurrent access to it.
+    /// Two tasks preparing a workspace for the same repository at the same
+    /// time both fetch into that one mirror, and libgit2 takes an OS-level
+    /// lock file per ref during a fetch - the second caller's fetch (or a
+    /// concurrent clone reading refs while another fetch is rewriting them)
+    /// fails with a real <see cref="LibGit2SharpException"/>
+    /// ("failed to lock file ... for writing"), not a graceful queue. This
+    /// surfaced in Task 49's acceptance suite (two tasks against one
+    /// repository, run concurrently - exactly the scenario the mirror-sharing
+    /// design implies must be safe) and is fixed here with one lock per
+    /// repository id, scoped process-wide since a mirror is a process-wide
+    /// resource regardless of which DI scope's <see cref="LibGit2Workspace"/>
+    /// instance touches it.
+    /// </summary>
+    private static readonly ConcurrentDictionary<Guid, SemaphoreSlim> MirrorLocks = new();
+
+    private static SemaphoreSlim MirrorLockFor(Guid repositoryId) =>
+        MirrorLocks.GetOrAdd(repositoryId, _ => new SemaphoreSlim(1, 1));
+
     public async Task<WorkspaceHandle> PrepareAsync(WorkspaceRequest request, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(request.RemoteUrl))
@@ -33,15 +56,26 @@ public sealed class LibGit2Workspace(
             throw new InvalidOperationException($"Workspace directory '{workspacePath}' already exists.");
 
         var credentials = await CredentialsForAsync(request.RemoteUrl, request.CredentialRef, ct);
-        var baseline = await Task.Run(() =>
-        {
-            var mirror = new RepositoryMirror(mirrorPath);
-            mirror.EnsureRemote(request.RemoteUrl);
-            return mirror.FetchBaseTip(request.BaseBranch, credentials);
-        }, ct);
 
-        await Task.Run(() => CloneAtBaseline(
-            mirrorPath, workspacePath, request, baseline), ct);
+        var mirrorLock = MirrorLockFor(request.RepositoryId);
+        await mirrorLock.WaitAsync(ct);
+        string baseline;
+        try
+        {
+            baseline = await Task.Run(() =>
+            {
+                var mirror = new RepositoryMirror(mirrorPath);
+                mirror.EnsureRemote(request.RemoteUrl);
+                return mirror.FetchBaseTip(request.BaseBranch, credentials);
+            }, ct);
+
+            await Task.Run(() => CloneAtBaseline(
+                mirrorPath, workspacePath, request, baseline), ct);
+        }
+        finally
+        {
+            mirrorLock.Release();
+        }
 
         var workspace = new Workspace(
             request.TaskId, request.RepositoryId, workspacePath, baseline,
@@ -111,8 +145,19 @@ public sealed class LibGit2Workspace(
         var mirror = new RepositoryMirror(mirrorPath);
         var credentials = await CredentialsForAsync(
             mirror.RemoteUrl, new SecretRef(workspace.CredentialKey), ct);
-        var tip = await Task.Run(
-            () => mirror.FetchBaseTip(workspace.BaseBranch, credentials), ct);
+
+        var mirrorLock = MirrorLockFor(workspace.RepositoryId);
+        await mirrorLock.WaitAsync(ct);
+        string tip;
+        try
+        {
+            tip = await Task.Run(() => mirror.FetchBaseTip(workspace.BaseBranch, credentials), ct);
+        }
+        finally
+        {
+            mirrorLock.Release();
+        }
+
         return !tip.Equals(workspace.BaselineCommit, StringComparison.Ordinal);
     }
 

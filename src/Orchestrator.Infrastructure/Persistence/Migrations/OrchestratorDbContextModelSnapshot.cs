@@ -81,6 +81,77 @@ namespace Orchestrator.Infrastructure.Persistence.Migrations
                     b.ToTable("audit_events", "orchestrator");
                 });
 
+            modelBuilder.Entity("Orchestrator.Domain.Authorization.Approval", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("action");
+
+                    b.Property<string>("ApprovalKind")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("approval_kind");
+
+                    b.Property<string>("ApproverId")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("approver_id");
+
+                    b.Property<DateTimeOffset?>("DecidedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("decided_at");
+
+                    b.Property<string>("Decision")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("decision");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<string>("PolicyVersion")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("policy_version");
+
+                    b.Property<string>("RequestedFrom")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("requested_from");
+
+                    b.Property<string>("ResourceDescription")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("resource_description");
+
+                    b.Property<string>("SubjectHash")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("subject_hash");
+
+                    b.Property<Guid>("TaskId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("task_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TaskId");
+
+                    b.ToTable("approvals", "orchestrator");
+                });
+
             modelBuilder.Entity("Orchestrator.Domain.Authorization.AuthorizationEnvelope", b =>
                 {
                     b.Property<Guid>("Id")
@@ -429,6 +500,81 @@ namespace Orchestrator.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("admin_accounts", "orchestrator");
+                });
+
+            modelBuilder.Entity("Orchestrator.Domain.Identity.OwnershipEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<bool>("CanApproveRestrictedActions")
+                        .HasColumnType("boolean")
+                        .HasColumnName("can_approve_restricted_actions");
+
+                    b.Property<bool>("CanConfirmPlans")
+                        .HasColumnType("boolean")
+                        .HasColumnName("can_confirm_plans");
+
+                    b.Property<Guid>("OwnerPersonId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("owner_person_id");
+
+                    b.Property<string>("Subject")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("subject");
+
+                    b.Property<string>("SubjectKey")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("subject_key");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Subject", "SubjectKey");
+
+                    b.ToTable("ownership_entries", "orchestrator");
+                });
+
+            modelBuilder.Entity("Orchestrator.Domain.Identity.PersonIdentity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AzureDevOpsId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("azure_dev_ops_id");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("display_name");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("email");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("SlackUserId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("slack_user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SlackUserId");
+
+                    b.ToTable("people", "orchestrator");
                 });
 
             modelBuilder.Entity("Orchestrator.Domain.Integrations.IntegrationSetting", b =>

@@ -342,7 +342,11 @@ public sealed class TaskQueryEndpointTests(PostgresFixture fixture, Orchestrator
         // otherwise this test could pass even if WaitingFor were hardcoded.
         var recipient = new PersonIdentity(
             Guid.CreateVersion7(), recipientDisplayName, $"U-{Guid.NewGuid():N}", null, null, isActive: true);
-        var people = _factory.Services.GetRequiredService<IPersonStore>();
+        // IPersonStore is now durable (EF-backed, Scoped) rather than an in-memory
+        // singleton, so it must be resolved from its own scope rather than the
+        // factory's root provider.
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var people = scope.ServiceProvider.GetRequiredService<IPersonStore>();
         await people.AddAsync(recipient, CancellationToken.None);
 
         var question = new HumanQuestion(

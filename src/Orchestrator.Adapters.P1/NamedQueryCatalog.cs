@@ -46,8 +46,24 @@ public sealed class NamedQueryCatalog
 
     public bool TryGet(string name, out NamedQuery? query) => _byName.TryGetValue(name, out query);
 
+    /// <summary>
+    /// Loads the catalog from <paramref name="path"/>, or an empty catalog if the
+    /// file does not exist. A missing catalog file is a real, currently-shipped
+    /// state - <c>src/Orchestrator.Api/config/p1-named-queries.json</c> is not
+    /// checked into the repository at all - and until Task 49's acceptance
+    /// suite exercised the real planning pipeline end to end, that meant
+    /// <see cref="NamedQueryDomainDataSource"/>'s constructor (and therefore
+    /// anything that resolves <c>IDomainDataSource</c>, including planning)
+    /// threw <see cref="DirectoryNotFoundException"/> on first use in any
+    /// environment that has not separately deployed that file. An environment
+    /// with no P1 integration configured should simply have zero named
+    /// queries, not crash every step that touches the data source.
+    /// </summary>
     public static NamedQueryCatalog Load(string path)
     {
+        if (!File.Exists(path))
+            return new NamedQueryCatalog([]);
+
         var json = File.ReadAllText(path);
         var entries = JsonSerializer.Deserialize<List<NamedQueryEntry>>(json, JsonOptions)
             ?? throw new InvalidOperationException("Named query catalog '" + path + "' did not contain a query list.");

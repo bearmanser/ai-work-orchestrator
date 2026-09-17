@@ -117,6 +117,7 @@ builder.Services.AddScoped<IIntegrationSettingsStore, EfIntegrationSettingsStore
 // process restart; InMemoryToolCallStore remains for tests that want no database.
 builder.Services.AddScoped<IToolCallStore, EfToolCallStore>();
 builder.Services.AddScoped<OperationReconciliationService>();
+builder.Services.AddScoped<IOperationReconciler, Orchestrator.Application.PullRequests.PullRequestCreateReconciler>();
 builder.Services.AddScoped<IToolGateway, ToolGateway>();
 builder.Services.AddScoped<IRepositoryProfileStore, EfRepositoryProfileStore>();
 builder.Services.AddScoped<RepositoryCatalogService>();
@@ -124,8 +125,11 @@ builder.Services.AddScoped<IRelationshipStore, EfRelationshipStore>();
 builder.Services.AddScoped<ISecretStore, EnvironmentSecretStore>();
 builder.Services.AddScoped<IEventRegistry, EventRegistry>();
 builder.Services.AddScoped<IOutboxWriter, OutboxWriter>();
-builder.Services.AddSingleton<IPersonStore, InMemoryPersonStore>();
-builder.Services.AddSingleton<IOwnershipStore, InMemoryOwnershipStore>();
+// Durable (Task 49 found that the in-memory stores silently lost every person
+// and ownership mapping across a process restart, which breaks resuming a task
+// that is waiting on a human answer - see task-49-report.md).
+builder.Services.AddScoped<IPersonStore, EfPersonStore>();
+builder.Services.AddScoped<IOwnershipStore, EfOwnershipStore>();
 builder.Services.AddScoped<IdentityResolver>();
 builder.Services.AddScoped<OwnershipDirectory>();
 builder.Services.AddScoped<ITaskIntakeStore, EfTaskIntakeStore>();
@@ -232,7 +236,9 @@ builder.Services.AddScoped<ImplementationStepHandler>();
 builder.Services.AddScoped<IStepHandler, ImplementationStepHandler>();
 builder.Services.AddScoped<VerificationStepHandler>();
 builder.Services.AddScoped<IStepHandler, VerificationStepHandler>();
-builder.Services.AddSingleton<IApprovalStore, InMemoryApprovalStore>();
+// Durable (Task 49 found the same restart-data-loss defect here that
+// IPersonStore/IOwnershipStore had - see task-49-report.md).
+builder.Services.AddScoped<IApprovalStore, Orchestrator.Infrastructure.Persistence.EfApprovalStore>();
 builder.Services.AddScoped<ApprovalService>();
 builder.Services.AddScoped<IPlanConfirmationStore, EfPlanConfirmationStore>();
 builder.Services.AddScoped<PlanConfirmationService>();

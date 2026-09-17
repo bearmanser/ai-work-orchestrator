@@ -2,11 +2,13 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Orchestrator.Api.Endpoints;
+using Orchestrator.Application.Identity;
 using Orchestrator.Domain.Audit;
-using Orchestrator.Domain.Evidence;
 using Orchestrator.Domain.Humans;
 using Orchestrator.Domain.Identity;
-using Orchestrator.Domain.PullRequests;
+using Orchestrator.Domain.Repositories;
 using Orchestrator.Domain.Steps;
 using Orchestrator.Domain.Tasks;
 using Orchestrator.Infrastructure.Identity;
@@ -124,13 +126,47 @@ public sealed class TaskQueryEndpointTests(PostgresFixture fixture, Orchestrator
     {
         await _fixture.ResetAsync();
         OrchestratorApiFactory.ConnectionString = _fixture.ConnectionString;
-        var taskId = await SeedTaskWaitingForAsync("Peer");
+        var taskId = await SeedTaskWaitingForAsync("Morgan Peer");
         var client = CreateAuthenticatedClient();
         var detail = await GetFromJsonAsync<TaskDetail>(client, $"/api/admin/tasks/{taskId}", _authCookie);
 
-        detail!.WaitingFor.ShouldBe("Peer");
+        detail!.WaitingFor.ShouldBe("Morgan Peer");
         detail.BlockedOn.ShouldNotBeNull();
         detail.BlockedOn.ShouldContain("question");
+    }
+
+    [Fact]
+    public async Task GetTask_WaitingForHuman_IsNotHardcodedToASingleName()
+    {
+        // Regression test for the bug where WaitingFor was hardcoded to the
+        // literal string "Peer" regardless of who the question was actually
+        // sent to. Seeding a differently-named recipient must produce that
+        // recipient's own name, proving the value is really derived from the
+        // HumanQuestion's RecipientPersonId rather than a constant.
+        await _fixture.ResetAsync();
+        OrchestratorApiFactory.ConnectionString = _fixture.ConnectionString;
+        var taskId = await SeedTaskWaitingForAsync("Someone Else Entirely");
+        var client = CreateAuthenticatedClient();
+        var detail = await GetFromJsonAsync<TaskDetail>(client, $"/api/admin/tasks/{taskId}", _authCookie);
+
+        detail!.WaitingFor.ShouldBe("Someone Else Entirely");
+        detail.WaitingFor.ShouldNotBe("Peer");
+    }
+
+    [Fact]
+    public async Task GetTasks_FiltersByRepositoryId()
+    {
+        await _fixture.ResetAsync();
+        OrchestratorApiFactory.ConnectionString = _fixture.ConnectionString;
+        var (matchingRepositoryId, matchingTaskId) = await SeedTaskWithWorkspaceAsync();
+        await SeedTasksAsync(planning: 1, watchingPullRequests: 0); // unrelated task, no workspace
+
+        var client = CreateAuthenticatedClient();
+        var page = await GetFromJsonAsync<PagedResult<TaskSummary>>(
+            client, $"/api/admin/tasks?repositoryId={matchingRepositoryId}", _authCookie);
+
+        page!.Items.Count.ShouldBe(1);
+        page.Items[0].Id.ShouldBe(matchingTaskId);
     }
 
     [Fact]
@@ -145,6 +181,64 @@ public sealed class TaskQueryEndpointTests(PostgresFixture fixture, Orchestrator
         detail!.Checks.ShouldNotBeEmpty();
         detail.DomainChecks.ShouldNotBeEmpty();
         typeof(TaskDetail).GetProperty("AllChecks").ShouldBeNull(); // no merged view exists
+    }
+
+    [Fact]
+    public async Task GetTask_ChecksSplit_DoesNotMisclassifyFreeTextMentioningP1()
+    {
+        // Regression test: the split must read a structured "domain" field,
+        // not substring-match the raw DetailsJson blob. A local check whose
+        // free-text reason happens to mention "P1" must stay a local check.
+        await _fixture.ResetAsync();
+        OrchestratorApiFactory.ConnectionString = _fixture.ConnectionString;
+
+        await using (var db = _fixture.NewDbContext())
+        {
+            var now = _factory.Clock.GetUtcNow();
+            var task = new WorkTask("Task with P1 in free text", "U1", TaskSource.Slack, $"c-freetext-{Guid.NewGuid()}", now);
+            db.Tasks.Add(task);
+            db.AuditEvents.Add(new AuditEvent(
+                "system", task.Id, "check.run", "Regenerate recap1 summary", "Passed", "corr-5",
+                """{"check": "recap1-regeneration"}""", now));
+            await db.SaveChangesAsync();
+
+            var client = CreateAuthenticatedClient();
+            var detail = await GetFromJsonAsync<TaskDetail>(client, $"/api/admin/tasks/{task.Id}", _authCookie);
+
+            detail!.DomainChecks.ShouldBeEmpty();
+            detail.Checks.ShouldNotBeEmpty();
+        }
+    }
+
+    [Fact]
+    public async Task GetTask_ChecksSplit_TreatsMissingOrWrongTypedDomainFieldAsLocal()
+    {
+        // DetailsJson is a jsonb column, so genuinely malformed JSON can never
+        // reach the database - but a valid document that simply has no
+        // "domain" field, or has one of the wrong JSON type, must still be
+        // treated as a local check rather than throwing or matching.
+        await _fixture.ResetAsync();
+        OrchestratorApiFactory.ConnectionString = _fixture.ConnectionString;
+
+        await using (var db = _fixture.NewDbContext())
+        {
+            var now = _factory.Clock.GetUtcNow();
+            var task = new WorkTask("Task with no domain field", "U1", TaskSource.Slack, $"c-nodomain-{Guid.NewGuid()}", now);
+            db.Tasks.Add(task);
+            db.AuditEvents.Add(new AuditEvent(
+                "system", task.Id, "check.run", "No domain field at all", "Passed", "corr-6",
+                """{"check": "dotnet test"}""", now));
+            db.AuditEvents.Add(new AuditEvent(
+                "system", task.Id, "check.run", "Domain field of the wrong type", "Passed", "corr-7",
+                """{"check": "dotnet test", "domain": 1}""", now));
+            await db.SaveChangesAsync();
+
+            var client = CreateAuthenticatedClient();
+            var detail = await GetFromJsonAsync<TaskDetail>(client, $"/api/admin/tasks/{task.Id}", _authCookie);
+
+            detail!.DomainChecks.ShouldBeEmpty();
+            detail.Checks.Count.ShouldBe(2);
+        }
     }
 
     [Fact]
@@ -228,7 +322,7 @@ public sealed class TaskQueryEndpointTests(PostgresFixture fixture, Orchestrator
         await db.SaveChangesAsync();
     }
 
-    private async Task<Guid> SeedTaskWaitingForAsync(string peerName)
+    private async Task<Guid> SeedTaskWaitingForAsync(string recipientDisplayName)
     {
         await using var db = _fixture.NewDbContext();
         var clock = _factory.Clock;
@@ -242,14 +336,41 @@ public sealed class TaskQueryEndpointTests(PostgresFixture fixture, Orchestrator
         var step = new Step(task.Id, "implementation", null, null, now);
         db.Steps.Add(step);
 
+        // The recipient must actually be registered in IPersonStore (the same
+        // identity store HumanQuestionService resolves display names through)
+        // so the endpoint's WaitingFor derivation has a real name to join to -
+        // otherwise this test could pass even if WaitingFor were hardcoded.
+        var recipient = new PersonIdentity(
+            Guid.CreateVersion7(), recipientDisplayName, $"U-{Guid.NewGuid():N}", null, null, isActive: true);
+        var people = _factory.Services.GetRequiredService<IPersonStore>();
+        await people.AddAsync(recipient, CancellationToken.None);
+
         var question = new HumanQuestion(
-            task.Id, step.Id, Guid.NewGuid(), "Please review this question",
+            task.Id, step.Id, recipient.Id, "Please review this question",
             "C123", "1234567890.123456", "1234567890.123456",
             now, now.AddMinutes(5), now.AddMinutes(10), now.AddHours(1));
         db.HumanQuestions.Add(question);
 
         await db.SaveChangesAsync();
         return task.Id;
+    }
+
+    private async Task<(Guid RepositoryId, Guid TaskId)> SeedTaskWithWorkspaceAsync()
+    {
+        await using var db = _fixture.NewDbContext();
+        var clock = _factory.Clock;
+        var now = clock.GetUtcNow();
+
+        var task = new WorkTask("Task with a repository", "U1", TaskSource.Slack, $"c-repo-{Guid.NewGuid()}", now);
+        db.Tasks.Add(task);
+
+        var repositoryId = Guid.CreateVersion7();
+        var workspace = new Workspace(
+            task.Id, repositoryId, "/tmp/workspace", "abc123", "main", "work/task", "cred-key", now);
+        db.Workspaces.Add(workspace);
+
+        await db.SaveChangesAsync();
+        return (repositoryId, task.Id);
     }
 
     private async Task<Guid> SeedTaskWithEvidenceAsync()
@@ -306,58 +427,3 @@ public sealed class TaskQueryEndpointTests(PostgresFixture fixture, Orchestrator
         return task.Id;
     }
 }
-
-public sealed record PagedResult<T>(IReadOnlyList<T> Items, int Page, int PageSize, int TotalCount);
-
-public sealed record TaskSummary(
-    Guid Id,
-    string Objective,
-    TaskState State,
-    string RequesterDisplayName,
-    DateTimeOffset UpdatedAt,
-    string? BlockedOn,
-    string? WaitingFor);
-
-public sealed record TaskDetail(
-    Guid Id,
-    string Objective,
-    TaskState State,
-    string RequesterDisplayName,
-    DateTimeOffset UpdatedAt,
-    string? BlockedOn,
-    string? WaitingFor,
-    IReadOnlyList<StepSummary> Steps,
-    IReadOnlyList<PullRequestSummary> PullRequests,
-    IReadOnlyList<CheckResultSummary> Checks,
-    IReadOnlyList<DomainCheckSummary> DomainChecks,
-    PlanRevisionSummary? ConfirmedPlan,
-    BudgetSummary Budget,
-    IReadOnlyList<AuditEntrySummary> Audit);
-
-public sealed record StepSummary(Guid Id, string Capability, StepStatus Status, DateTimeOffset CreatedAt);
-
-public sealed record PullRequestSummary(int PullRequestId, string Url, bool IsRequired, bool IsApproved, string? ApprovalReason);
-
-public sealed record CheckResultSummary(string Name, string Outcome, DateTimeOffset RunAt);
-
-public sealed record DomainCheckSummary(string Name, string Outcome, DateTimeOffset RunAt);
-
-public sealed record PlanRevisionSummary(int Revision, DateTimeOffset ConfirmedAt);
-
-public sealed record BudgetSummary(
-    decimal MaxUsd,
-    decimal SpentUsd,
-    TimeSpan MaxWallClock,
-    TimeSpan ElapsedWallClock,
-    int MaxAgentInvocations,
-    int AgentInvocations,
-    int MaxCorrectionAttempts,
-    int CorrectionAttempts);
-
-public sealed record AuditEntrySummary(
-    Guid Id,
-    string Actor,
-    string Action,
-    string Reason,
-    string Outcome,
-    DateTimeOffset OccurredAt);

@@ -1,9 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
-import { BrowserRouter, Navigate, Route, Routes, useNavigate } from "react-router-dom";
+import { BrowserRouter, Link, Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
 import { LoginPage } from "./features/auth/LoginPage";
 import { RequireSession } from "./features/auth/RequireSession";
 import { useSession } from "./features/auth/useSession";
+import { TaskDetailPage } from "./features/tasks/TaskDetailPage";
+import { TaskListPage } from "./features/tasks/TaskListPage";
 
 const queryClient = new QueryClient();
 
@@ -32,11 +34,22 @@ function HomePage() {
     <main>
       <h1>Orchestrator admin</h1>
       <p>Signed in as {session?.loginName}.</p>
+      <p>
+        <Link to="/tasks">View tasks</Link>
+      </p>
       <button type="button" onClick={handleLogout}>
         Sign out
       </button>
     </main>
   );
+}
+
+function TaskDetailRoute() {
+  const { taskId } = useParams<{ taskId: string }>();
+  if (taskId === undefined) {
+    return <Navigate to="/tasks" replace />;
+  }
+  return <TaskDetailPage taskId={taskId} />;
 }
 
 export function App() {
@@ -48,6 +61,8 @@ export function App() {
           <Route path="/login" element={<LoginRoute />} />
           <Route element={<RequireSession />}>
             <Route path="/" element={<HomePage />} />
+            <Route path="/tasks" element={<TaskListPage />} />
+            <Route path="/tasks/:taskId" element={<TaskDetailRoute />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

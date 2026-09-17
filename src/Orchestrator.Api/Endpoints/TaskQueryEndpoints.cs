@@ -1,7 +1,9 @@
 using System.Security.Claims;
+using System.Text.Json;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using Orchestrator.Api.Auth;
+using Orchestrator.Application.Identity;
 using Orchestrator.Application.Ports;
 using Orchestrator.Domain.Audit;
 using Orchestrator.Domain.Evidence;
@@ -23,8 +25,12 @@ public interface ITaskQueryStore
 }
 
 /// <summary>EF-backed implementation using projection selects to avoid leaking secrets.</summary>
-public sealed class EfTaskQueryStore(OrchestratorDbContext db) : ITaskQueryStore
+public sealed class EfTaskQueryStore(OrchestratorDbContext db, IPersonStore people) : ITaskQueryStore
 {
+    /// <summary>Question statuses that mean a task is still genuinely waiting on the recipient.</summary>
+    private static readonly HumanQuestionStatus[] OpenQuestionStatuses =
+        [HumanQuestionStatus.Open, HumanQuestionStatus.ReminderSent, HumanQuestionStatus.Escalated];
+
     public async Task<PagedResult<TaskSummary>> ListAsync(
         TaskState? state, Guid? repositoryId, int page, int pageSize, CancellationToken ct)
     {
@@ -33,23 +39,38 @@ public sealed class EfTaskQueryStore(OrchestratorDbContext db) : ITaskQueryStore
         if (state.HasValue)
             query = query.Where(t => t.State == state.Value);
 
-        // repositoryId filter would join through steps -> repository, but for now we ignore it
-        // as the test doesn't use it and the relationship isn't directly on Task
+        if (repositoryId.HasValue)
+        {
+            // A task's repository association traces through the isolated checkout
+            // recorded for it in Workspace (task 34's git-workspace record), not
+            // through a plan-level entity - no plan/repository-change table exists
+            // yet in this codebase.
+            var taskIdsForRepository = db.Workspaces.AsNoTracking()
+                .Where(w => w.RepositoryId == repositoryId.Value)
+                .Select(w => w.TaskId);
+            query = query.Where(t => taskIdsForRepository.Contains(t.Id));
+        }
 
         var totalCount = await query.CountAsync(ct);
-        var items = await query
+        var rows = await query
             .OrderByDescending(t => t.UpdatedAt)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
+            .Select(t => new { t.Id, t.Objective, t.State, t.RequesterId, t.UpdatedAt })
+            .ToListAsync(ct);
+
+        var waitingFor = await ResolveWaitingForAsync(rows.Select(r => r.Id).ToList(), ct);
+
+        var items = rows
             .Select(t => new TaskSummary(
                 t.Id,
                 t.Objective,
                 t.State,
-                t.RequesterId, // Using RequesterId as display name for now
+                t.RequesterId,
                 t.UpdatedAt,
-                DeriveBlockedOn(t),
-                DeriveWaitingFor(t)))
-            .ToListAsync(ct);
+                DeriveBlockedOn(t.State),
+                waitingFor.GetValueOrDefault(t.Id)))
+            .ToList();
 
         return new PagedResult<TaskSummary>(items, page, pageSize, totalCount);
     }
@@ -65,23 +86,32 @@ public sealed class EfTaskQueryStore(OrchestratorDbContext db) : ITaskQueryStore
             .Select(s => new StepSummary(s.Id, s.Capability, s.Status, s.CreatedAt))
             .ToListAsync(ct);
 
-        // PullRequestTracking not yet in EF model - return empty list
+        // PullRequestTracking (Task 23's domain type) has no DbSet, EF configuration,
+        // or migration anywhere in this codebase yet, so there is nothing to query -
+        // this is a persistence gap in whichever task owns that schema, not task 45.
+        // Left genuinely empty rather than fabricated, so callers cannot mistake this
+        // for "no PRs" once that table exists.
         var pullRequests = new List<PullRequestSummary>();
 
-        // Checks and DomainChecks are derived from audit events for now (Tasks 29-30 not yet available)
-        // Fetch all check.run events and filter in memory to avoid jsonb ILIKE issues
+        // Checks/DomainChecks: Tasks 29 (runtime check runner) and 30 (evidence
+        // bundles) don't exist yet, so there is no CheckResult/DomainCheckResult
+        // table to join against. As a placeholder, we derive both lists from
+        // "check.run" audit events and use IsDomainCheck to split them by reading
+        // a structured "domain" field out of DetailsJson - never by substring-
+        // matching the raw JSON blob, which could misclassify any check whose
+        // free-text reason happens to contain "P1". Replace this once 29/30 land.
         var allChecks = await db.AuditEvents.AsNoTracking()
             .Where(a => a.TaskId == id && a.Action == "check.run")
             .Select(a => new { a.Reason, a.Outcome, a.OccurredAt, a.DetailsJson })
             .ToListAsync(ct);
 
         var checks = allChecks
-            .Where(a => !a.DetailsJson.Contains("P1", StringComparison.OrdinalIgnoreCase))
+            .Where(a => !IsDomainCheck(a.DetailsJson))
             .Select(a => new CheckResultSummary(ExtractCheckName(a.Reason), a.Outcome, a.OccurredAt))
             .ToList();
 
         var domainChecks = allChecks
-            .Where(a => a.DetailsJson.Contains("P1", StringComparison.OrdinalIgnoreCase))
+            .Where(a => IsDomainCheck(a.DetailsJson))
             .Select(a => new DomainCheckSummary(ExtractCheckName(a.Reason), a.Outcome, a.OccurredAt))
             .ToList();
 
@@ -105,14 +135,16 @@ public sealed class EfTaskQueryStore(OrchestratorDbContext db) : ITaskQueryStore
 
         // ConfirmedPlan - not available yet, leave null
 
+        var waitingFor = await ResolveWaitingForAsync(id, task.State, ct);
+
         return new TaskDetail(
             task.Id,
             task.Objective,
             task.State,
             task.RequesterId,
             task.UpdatedAt,
-            DeriveBlockedOn(task),
-            DeriveWaitingFor(task),
+            DeriveBlockedOn(task.State),
+            waitingFor,
             steps,
             pullRequests,
             checks,
@@ -120,6 +152,95 @@ public sealed class EfTaskQueryStore(OrchestratorDbContext db) : ITaskQueryStore
             null, // ConfirmedPlan
             budgetSummary,
             audit);
+    }
+
+    /// <summary>
+    /// Resolves who a single <see cref="TaskState.WaitingForHuman"/> task is
+    /// waiting for, by finding its still-open <see cref="HumanQuestion"/> and
+    /// resolving the recipient's display name through <see cref="IPersonStore"/> -
+    /// the same identity-resolution pattern <c>HumanQuestionService</c> uses.
+    /// Returns null if the task isn't waiting on a human, has no open question,
+    /// or the recipient can no longer be resolved to a display name.
+    /// </summary>
+    private async Task<string?> ResolveWaitingForAsync(Guid taskId, TaskState state, CancellationToken ct)
+    {
+        if (state != TaskState.WaitingForHuman)
+            return null;
+
+        var recipientId = await db.HumanQuestions.AsNoTracking()
+            .Where(q => q.TaskId == taskId && OpenQuestionStatuses.Contains(q.Status))
+            .OrderByDescending(q => q.AskedAt)
+            .Select(q => (Guid?)q.RecipientPersonId)
+            .FirstOrDefaultAsync(ct);
+
+        if (recipientId is null)
+            return null;
+
+        var person = await people.GetByIdAsync(recipientId.Value, ct);
+        return person?.DisplayName;
+    }
+
+    /// <summary>Batch form of <see cref="ResolveWaitingForAsync(Guid,TaskState,CancellationToken)"/> for a page of tasks.</summary>
+    private async Task<Dictionary<Guid, string?>> ResolveWaitingForAsync(IReadOnlyList<Guid> taskIds, CancellationToken ct)
+    {
+        var result = new Dictionary<Guid, string?>();
+        if (taskIds.Count == 0)
+            return result;
+
+        var openQuestions = await db.HumanQuestions.AsNoTracking()
+            .Where(q => taskIds.Contains(q.TaskId) && OpenQuestionStatuses.Contains(q.Status))
+            .OrderByDescending(q => q.AskedAt)
+            .Select(q => new { q.TaskId, q.RecipientPersonId })
+            .ToListAsync(ct);
+
+        // Keep only the most recently asked open question per task.
+        var recipientByTask = openQuestions
+            .GroupBy(q => q.TaskId)
+            .ToDictionary(g => g.Key, g => g.First().RecipientPersonId);
+
+        var uniquePersonIds = recipientByTask.Values.Distinct().ToList();
+        var displayNames = new Dictionary<Guid, string?>();
+        foreach (var personId in uniquePersonIds)
+        {
+            var person = await people.GetByIdAsync(personId, ct);
+            displayNames[personId] = person?.DisplayName;
+        }
+
+        foreach (var taskId in taskIds)
+        {
+            result[taskId] = recipientByTask.TryGetValue(taskId, out var personId)
+                ? displayNames.GetValueOrDefault(personId)
+                : null;
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// True when a "check.run" audit event's <c>DetailsJson</c> carries a
+    /// structured <c>"domain": "P1"</c> field. This is a placeholder pending
+    /// Tasks 29/30's real evidence schema (CheckResult/DomainCheckResult) -
+    /// once those tables exist, this heuristic should be replaced by a real
+    /// join. Until then, matching a structured field (rather than searching
+    /// the raw JSON text for the substring "P1") avoids misclassifying a
+    /// local check whose free-text reason happens to mention "P1", and
+    /// malformed/missing JSON is treated as "not a domain check" rather than
+    /// throwing.
+    /// </summary>
+    private static bool IsDomainCheck(string detailsJson)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(detailsJson);
+            return doc.RootElement.ValueKind == JsonValueKind.Object
+                && doc.RootElement.TryGetProperty("domain", out var domain)
+                && domain.ValueKind == JsonValueKind.String
+                && string.Equals(domain.GetString(), "P1", StringComparison.OrdinalIgnoreCase);
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
     }
 
     public async Task<Stream?> OpenArtifactAsync(string artifactId, CancellationToken ct)
@@ -142,17 +263,11 @@ public sealed class EfTaskQueryStore(OrchestratorDbContext db) : ITaskQueryStore
             .FirstOrDefaultAsync(a => a.Id == artifactId, ct);
     }
 
-    private static string? DeriveBlockedOn(WorkTask task) => task.State switch
+    private static string? DeriveBlockedOn(TaskState state) => state switch
     {
         TaskState.WaitingForHuman => "question",
         TaskState.WaitingForPlanConfirmation => "plan confirmation",
         TaskState.WaitingForActionApproval => "action approval",
-        _ => null
-    };
-
-    private static string? DeriveWaitingFor(WorkTask task) => task.State switch
-    {
-        TaskState.WaitingForHuman => "Peer", // Would need to join HumanQuestion to get actual name
         _ => null
     };
 
@@ -185,7 +300,10 @@ public sealed record TaskSummary(
     Guid Id,
     string Objective,
     TaskState State,
-    string RequesterDisplayName,
+    // Honestly named: this is the raw requester id (e.g. a Slack user id),
+    // not a resolved display name - no identity lookup is done for the
+    // requester today.
+    string RequesterId,
     DateTimeOffset UpdatedAt,
     string? BlockedOn,
     string? WaitingFor);
@@ -194,7 +312,7 @@ public sealed record TaskDetail(
     Guid Id,
     string Objective,
     TaskState State,
-    string RequesterDisplayName,
+    string RequesterId,
     DateTimeOffset UpdatedAt,
     string? BlockedOn,
     string? WaitingFor,

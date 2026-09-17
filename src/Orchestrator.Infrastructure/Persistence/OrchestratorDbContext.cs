@@ -8,10 +8,12 @@ using Orchestrator.Domain.Context;
 using Orchestrator.Domain.Evidence;
 using Orchestrator.Domain.Humans;
 using Orchestrator.Domain.Identity;
+using Orchestrator.Domain.Integrations;
 using Orchestrator.Domain.Memory;
 using Orchestrator.Domain.Messaging;
 using Orchestrator.Domain.Operations;
 using Orchestrator.Domain.Plans;
+using Orchestrator.Domain.Policy;
 using Orchestrator.Domain.PullRequests;
 using Orchestrator.Domain.Repositories;
 using Orchestrator.Domain.Steps;
@@ -42,6 +44,8 @@ public class OrchestratorDbContext(DbContextOptions<OrchestratorDbContext> optio
     public DbSet<Workspace> Workspaces => Set<Workspace>();
     public DbSet<HumanQuestion> HumanQuestions => Set<HumanQuestion>();
     public DbSet<ToolCallRecord> ToolCallRecords => Set<ToolCallRecord>();
+    public DbSet<PolicyConfigurationRow> PolicyConfigurations => Set<PolicyConfigurationRow>();
+    public DbSet<IntegrationSetting> IntegrationSettings => Set<IntegrationSetting>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

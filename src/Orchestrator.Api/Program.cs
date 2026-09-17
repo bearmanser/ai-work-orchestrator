@@ -91,6 +91,17 @@ builder.Services.AddScoped<OutboxDispatcher>(sp => new OutboxDispatcher(
                     .HandleSlackEventAsync(inbound, ct);
             }
         }
+        else if (message.MessageType == "pullrequest.event")
+        {
+            var prEvent = JsonSerializer.Deserialize<PullRequestEvent>(
+                message.PayloadJson,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            if (prEvent is not null)
+            {
+                await sp.GetRequiredService<PullRequestFeedbackRouter>()
+                    .HandleAsync(prEvent.EventType, prEvent.PullRequestId, ct);
+            }
+        }
     },
     sp.GetRequiredService<TimeProvider>()));
 builder.Services.AddScoped<IAuditWriter, AuditWriter>();
@@ -199,6 +210,7 @@ builder.Services.AddScoped<IPullRequestTrackingStore, EfPullRequestTrackingStore
 builder.Services.AddScoped<IStepStore, EfStepStore>();
 builder.Services.AddScoped<ITaskEvidenceStore, EfTaskEvidenceStore>();
 builder.Services.AddScoped<EvidenceAssembler>();
+builder.Services.AddScoped<NextStepScheduler>();
 
 var azureDevOpsOptions = new AzureDevOpsOptions();
 builder.Configuration.GetSection("Orchestrator:AzureDevOps").Bind(azureDevOpsOptions);
@@ -210,6 +222,7 @@ builder.Services.AddScoped<IStepHandler, PullRequestCreationStepHandler>();
 builder.Services.AddScoped<TaskCompletionService>();
 builder.Services.AddScoped<FeedbackStepHandler>();
 builder.Services.AddScoped<IStepHandler, FeedbackStepHandler>();
+builder.Services.AddScoped<PullRequestFeedbackRouter>();
 
 var taskCompletionOptions = new TaskCompletionOptions();
 builder.Configuration.GetSection("Orchestrator:TaskCompletion").Bind(taskCompletionOptions);

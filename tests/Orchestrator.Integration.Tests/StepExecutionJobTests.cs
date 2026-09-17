@@ -4,6 +4,8 @@ using Orchestrator.Application.Steps;
 using Orchestrator.Domain.Steps;
 using Orchestrator.Domain.Tasks;
 using Orchestrator.Infrastructure.Jobs;
+using Orchestrator.Infrastructure.Outbox;
+using Orchestrator.Infrastructure.Persistence;
 using Shouldly;
 
 namespace Orchestrator.Integration.Tests;
@@ -19,8 +21,7 @@ public class StepExecutionJobTests(PostgresFixture fixture)
     {
         var (_, stepId) = await SeedTaskAndStepAsync("planning");
         var handler = new StubHandler("planning", new StepOutcome(null, "artifact-42", null));
-        var job = new StepExecutionJob(
-            fixture.NewDbContext(), new StepDispatcher([handler]), new LeaseManager(fixture.NewDbContext(), _clock), _clock);
+        var job = BuildJob(fixture.NewDbContext(), new StepDispatcher([handler]));
 
         await job.RunAsync(stepId, default);
 
@@ -35,8 +36,7 @@ public class StepExecutionJobTests(PostgresFixture fixture)
     {
         var (_, stepId) = await SeedTaskAndStepAsync("planning");
         var handler = new StubHandler("planning", new StepOutcome(null, null, "boom"));
-        var job = new StepExecutionJob(
-            fixture.NewDbContext(), new StepDispatcher([handler]), new LeaseManager(fixture.NewDbContext(), _clock), _clock);
+        var job = BuildJob(fixture.NewDbContext(), new StepDispatcher([handler]));
 
         await job.RunAsync(stepId, default);
 
@@ -51,14 +51,62 @@ public class StepExecutionJobTests(PostgresFixture fixture)
     {
         var (taskId, stepId) = await SeedTaskAndStepAsync("planning");
         var handler = new StubHandler("planning", new StepOutcome(TaskTrigger.PlanningStarted, "artifact-1", null));
-        var job = new StepExecutionJob(
-            fixture.NewDbContext(), new StepDispatcher([handler]), new LeaseManager(fixture.NewDbContext(), _clock), _clock);
+        var job = BuildJob(fixture.NewDbContext(), new StepDispatcher([handler]));
 
         await job.RunAsync(stepId, default);
 
         await using var db = fixture.NewDbContext();
         var task = await db.Tasks.SingleAsync(t => t.Id == taskId);
         task.State.ShouldBe(TaskState.Planning);
+    }
+
+    [Fact]
+    public async Task RunAsync_TriggerWithAMappedNextStep_CreatesAndEnqueuesIt()
+    {
+        // Proves the fix Task 49 found missing: nothing in production created the
+        // next Step after one finished, so no real task could progress past plan
+        // confirmation. Seeds a task already at WaitingForPlanConfirmation with a
+        // step whose handler fires PlanConfirmed - exactly the transition
+        // NextStepFactory maps to a "coding_agent.execute" step - and asserts that
+        // step, and its "step.dispatch" outbox message, both now exist for real,
+        // with no test-side step seeding.
+        Guid taskId;
+        await using (var seedDb = fixture.NewDbContext())
+        {
+            var task = new WorkTask("e2e chain test", "U1", TaskSource.Slack, $"c-{Guid.NewGuid()}", _clock.GetUtcNow());
+            task.Fire(TaskTrigger.PlanningStarted, _clock.GetUtcNow());
+            task.Fire(TaskTrigger.PlanPosted, _clock.GetUtcNow());
+            seedDb.Tasks.Add(task);
+            var step = new Step(task.Id, "planning", dependsOnStepId: null, inputArtifactId: null, _clock.GetUtcNow());
+            seedDb.Steps.Add(step);
+            await seedDb.SaveChangesAsync();
+            taskId = task.Id;
+        }
+
+        var stepId = await StepIdForAsync(taskId);
+        var handler = new StubHandler("planning", new StepOutcome(TaskTrigger.PlanConfirmed, null, null));
+        var job = BuildJob(fixture.NewDbContext(), new StepDispatcher([handler]));
+
+        await job.RunAsync(stepId, default);
+
+        await using var db = fixture.NewDbContext();
+        var task2 = await db.Tasks.SingleAsync(t => t.Id == taskId);
+        // Ready is transient: NextStepScheduler itself fires WorkDispatched, since
+        // nothing else in production does.
+        task2.State.ShouldBe(TaskState.Running);
+
+        var nextStep = await db.Steps.SingleAsync(s => s.TaskId == taskId && s.Capability == "coding_agent.execute");
+        nextStep.Status.ShouldBe(StepStatus.Pending);
+
+        var dispatchMessages = await db.Outbox.Where(m => m.MessageType == "step.dispatch").ToListAsync();
+        var outboxMessage = dispatchMessages.Single(m => m.PayloadJson.Contains(nextStep.Id.ToString()));
+        outboxMessage.ProcessedAt.ShouldBeNull();
+    }
+
+    private async Task<Guid> StepIdForAsync(Guid taskId)
+    {
+        await using var db = fixture.NewDbContext();
+        return await db.Steps.Where(s => s.TaskId == taskId).Select(s => s.Id).SingleAsync();
     }
 
     [Fact]
@@ -73,8 +121,7 @@ public class StepExecutionJobTests(PostgresFixture fixture)
             .TryAcquireAsync(stepId, "other-worker", TimeSpan.FromMinutes(5), default)).ShouldBeTrue();
 
         var handler = new StubHandler("planning", new StepOutcome(null, "artifact-1", null));
-        var job = new StepExecutionJob(
-            fixture.NewDbContext(), new StepDispatcher([handler]), new LeaseManager(fixture.NewDbContext(), _clock), _clock);
+        var job = BuildJob(fixture.NewDbContext(), new StepDispatcher([handler]));
 
         await job.RunAsync(stepId, default);
 
@@ -88,8 +135,7 @@ public class StepExecutionJobTests(PostgresFixture fixture)
     public async Task RunAsync_UnknownCapability_MarksStepFailedInsteadOfThrowing()
     {
         var (_, stepId) = await SeedTaskAndStepAsync("no-such-capability");
-        var job = new StepExecutionJob(
-            fixture.NewDbContext(), new StepDispatcher([]), new LeaseManager(fixture.NewDbContext(), _clock), _clock);
+        var job = BuildJob(fixture.NewDbContext(), new StepDispatcher([]));
 
         await Should.NotThrowAsync(() => job.RunAsync(stepId, default));
 
@@ -98,6 +144,11 @@ public class StepExecutionJobTests(PostgresFixture fixture)
         step.FailureReason.ShouldNotBeNull();
         step.FailureReason.ShouldContain("No handler");
     }
+
+    private StepExecutionJob BuildJob(
+        OrchestratorDbContext db, StepDispatcher dispatcher) =>
+        new(db, dispatcher, new LeaseManager(fixture.NewDbContext(), _clock),
+            new NextStepScheduler(new EfStepStore(db), new OutboxWriter(db, _clock), _clock), _clock);
 
     private async Task<Step> LoadStepAsync(Guid stepId)
     {

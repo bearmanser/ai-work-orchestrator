@@ -230,6 +230,9 @@ public sealed class FeedbackStepHandlerTests
             _trackings[tracking.Id] = tracking;
             return Task.CompletedTask;
         }
+
+        public Task<PullRequestTracking?> FindByPullRequestIdAsync(int pullRequestId, CancellationToken ct) =>
+            Task.FromResult(_trackings.Values.FirstOrDefault(t => t.PullRequestId == pullRequestId));
     }
 
     private sealed class FakeToolGateway : IToolGateway

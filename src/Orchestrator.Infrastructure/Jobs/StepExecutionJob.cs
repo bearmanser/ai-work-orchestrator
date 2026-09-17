@@ -10,6 +10,7 @@ public sealed class StepExecutionJob(
     OrchestratorDbContext db,
     StepDispatcher dispatcher,
     ILeaseManager leases,
+    NextStepScheduler nextStep,
     TimeProvider clock)
 {
     public async Task RunAsync(Guid stepId, CancellationToken ct)
@@ -41,7 +42,14 @@ public sealed class StepExecutionJob(
             step.Succeed(outcome.OutputArtifactId, now);
 
         if (outcome.Trigger is { } trigger)
+        {
+            var from = task.State;
             task.Fire(trigger, now);
+            // Chains the pipeline: nothing else creates the next Step after this one
+            // finishes (see NextStepScheduler's remarks) - without this call, a real
+            // task cannot progress past whatever state it just entered.
+            await nextStep.ScheduleAsync(task, from, trigger, ct);
+        }
 
         await db.SaveChangesAsync(ct);
     }

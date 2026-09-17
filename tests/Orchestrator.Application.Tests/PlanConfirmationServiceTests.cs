@@ -3,11 +3,13 @@ using Orchestrator.Application.Identity;
 using Orchestrator.Application.Plans;
 using Orchestrator.Application.Ports;
 using Orchestrator.Application.Repositories;
+using Orchestrator.Application.Steps;
 using Orchestrator.Domain.Authorization;
 using Orchestrator.Domain.Budgets;
 using Orchestrator.Domain.Identity;
 using Orchestrator.Domain.Plans;
 using Orchestrator.Domain.Repositories;
+using Orchestrator.Domain.Steps;
 using Orchestrator.Domain.Tasks;
 using Shouldly;
 
@@ -56,7 +58,7 @@ public sealed class PlanConfirmationServiceTests
     }
 
     [Fact]
-    public async Task Confirm_ByAnEligibleConfirmerOnTheCurrentRevision_MovesTaskToReady()
+    public async Task Confirm_ByAnEligibleConfirmerOnTheCurrentRevision_DispatchesImplementation()
     {
         var harness = new Harness();
         var revision = await harness.Service.PostForConfirmationAsync(TaskId, Content(), default);
@@ -64,7 +66,11 @@ public sealed class PlanConfirmationServiceTests
             Interaction("confirm_plan", revision.ContentHash, Magnus.SlackUserId!), default);
 
         outcome.Accepted.ShouldBeTrue();
-        (await harness.LoadTaskAsync(TaskId)).State.ShouldBe(TaskState.Ready);
+        // Ready is transient: NextStepScheduler (Task 50) fires WorkDispatched itself right after
+        // PlanConfirmed, since nothing else in production does - see its remarks. Confirming a
+        // plan must therefore land the task in Running, with an implementation attempt already
+        // dispatched, not sitting in Ready forever.
+        (await harness.LoadTaskAsync(TaskId)).State.ShouldBe(TaskState.Running);
     }
 
     [Fact]
@@ -225,6 +231,7 @@ public sealed class PlanConfirmationServiceTests
                 Profiles,
                 Chat,
                 Audit,
+                new NextStepScheduler(new NoOpStepStore(), new NoOpOutboxWriter(), TimeProvider.System),
                 TimeProvider.System,
                 new PlanConfirmationOptions { FallbackChannelId = "C1" });
         }
@@ -372,5 +379,18 @@ public sealed class PlanConfirmationServiceTests
 
         public Task UpdateAsync(RepositoryProfile profile, uint expectedVersion, CancellationToken ct) =>
             Task.CompletedTask;
+    }
+
+    private sealed class NoOpStepStore : IStepStore
+    {
+        public Task AddAsync(Step step, CancellationToken ct) => Task.CompletedTask;
+
+        public Task<IReadOnlyList<Step>> ListForTaskAsync(Guid taskId, CancellationToken ct) =>
+            Task.FromResult<IReadOnlyList<Step>>([]);
+    }
+
+    private sealed class NoOpOutboxWriter : IOutboxWriter
+    {
+        public void Enqueue(string messageType, object payload, Guid? taskId, string idempotencyKey) { }
     }
 }

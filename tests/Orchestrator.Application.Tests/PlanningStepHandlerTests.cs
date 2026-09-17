@@ -18,6 +18,7 @@ using Orchestrator.Domain.Humans;
 using Orchestrator.Domain.Identity;
 using Orchestrator.Domain.Plans;
 using Orchestrator.Domain.Repositories;
+using Orchestrator.Domain.Steps;
 using Orchestrator.Domain.Tasks;
 using Shouldly;
 
@@ -213,7 +214,9 @@ public sealed class PlanningStepHandlerTests
             new PlanConfirmationService(
                 Store, new ApprovalService(_approvals, Audit),
                 new OwnershipDirectory(_people, _ownership), new IdentityResolver(_people),
-                _profiles, Chat, Audit, TimeProvider.System,
+                _profiles, Chat, Audit,
+                new NextStepScheduler(new NoOpStepStore(), new NoOpOutboxWriter(), TimeProvider.System),
+                TimeProvider.System,
                 new PlanConfirmationOptions { FallbackChannelId = "C1" }),
             new OwnershipDirectory(_people, _ownership),
             _people,
@@ -227,7 +230,9 @@ public sealed class PlanningStepHandlerTests
             var confirmations = new PlanConfirmationService(
                 Store, new ApprovalService(_approvals, Audit),
                 new OwnershipDirectory(_people, _ownership), new IdentityResolver(_people),
-                _profiles, Chat, Audit, TimeProvider.System,
+                _profiles, Chat, Audit,
+                new NextStepScheduler(new NoOpStepStore(), new NoOpOutboxWriter(), TimeProvider.System),
+                TimeProvider.System,
                 new PlanConfirmationOptions { FallbackChannelId = "C1" });
             await confirmations.HandleInteractionAsync(
                 new SlackInteraction("request_plan_changes", revision.ContentHash, Magnus.SlackUserId!, text), default);
@@ -571,5 +576,18 @@ public sealed class PlanningStepHandlerTests
             Task.FromResult<StepLeaseInfo?>(null);
 
         public Task ReleaseAsync(Guid stepId, CancellationToken ct) => Task.CompletedTask;
+    }
+
+    private sealed class NoOpStepStore : IStepStore
+    {
+        public Task AddAsync(Step step, CancellationToken ct) => Task.CompletedTask;
+
+        public Task<IReadOnlyList<Step>> ListForTaskAsync(Guid taskId, CancellationToken ct) =>
+            Task.FromResult<IReadOnlyList<Step>>([]);
+    }
+
+    private sealed class NoOpOutboxWriter : IOutboxWriter
+    {
+        public void Enqueue(string messageType, object payload, Guid? taskId, string idempotencyKey) { }
     }
 }

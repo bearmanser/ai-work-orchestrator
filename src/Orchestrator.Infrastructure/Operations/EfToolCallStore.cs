@@ -21,6 +21,22 @@ public sealed class EfToolCallStore(OrchestratorDbContext db) : IToolCallStore
     public async Task<ToolCallRecord> RecordIntentAsync(
         ToolCall call, PolicyDecision decision, DateTimeOffset now, CancellationToken ct)
     {
+        var existing = await db.ToolCallRecords.SingleOrDefaultAsync(r => r.IdempotencyKey == call.IdempotencyKey, ct);
+        if (existing is not null)
+        {
+            switch (existing.Outcome)
+            {
+                case ToolCallOutcome.Unknown:
+                    throw new UnreconciledOperationException(call.IdempotencyKey);
+                case ToolCallOutcome.Succeeded:
+                    throw new OperationAlreadySucceededException(call.IdempotencyKey);
+                case ToolCallOutcome.Failed:
+                    existing.ResetForRetry(now);
+                    await db.SaveChangesAsync(ct);
+                    return existing;
+            }
+        }
+
         var record = new ToolCallRecord(
             Guid.CreateVersion7(),
             call.TaskId,

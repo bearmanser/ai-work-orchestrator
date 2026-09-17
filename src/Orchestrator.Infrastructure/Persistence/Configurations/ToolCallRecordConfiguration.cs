@@ -32,6 +32,7 @@ public sealed class ToolCallRecordConfiguration : IEntityTypeConfiguration<ToolC
         b.Property(r => r.ResultJson).HasColumnType("jsonb");
         b.Property(r => r.RecordedAt).IsRequired();
         b.Property(r => r.CompletedAt);
+        b.Property(r => r.AttemptCount).IsRequired().HasDefaultValue(1);
 
         b.HasIndex(r => r.IdempotencyKey).IsUnique();
         b.HasIndex(r => r.TaskId);

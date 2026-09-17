@@ -54,8 +54,14 @@ public sealed record ToolCallRecord
     public ToolCallOutcome Outcome { get; private set; }
     public PolicyDecision Decision { get; init; }
     public string? ResultJson { get; private set; }
-    public DateTimeOffset RecordedAt { get; init; }
+    public DateTimeOffset RecordedAt { get; private set; }
     public DateTimeOffset? CompletedAt { get; private set; }
+
+    /// <summary>
+    /// How many times this logical operation (one row per <see cref="IdempotencyKey"/>)
+    /// has been attempted. Starts at 1; <see cref="ResetForRetry"/> increments it.
+    /// </summary>
+    public int AttemptCount { get; private set; } = 1;
 
     /// <summary>
     /// Records the outcome of a previously-recorded intent. Used both by a successful
@@ -68,5 +74,25 @@ public sealed record ToolCallRecord
         Outcome = outcome;
         ResultJson = resultJson;
         CompletedAt = completedAt;
+    }
+
+    /// <summary>
+    /// Reuses this row for another attempt at the same logical operation, rather
+    /// than a caller inserting a second row under the same <see cref="IdempotencyKey"/>
+    /// - one row per key keeps "is this operation still in flight?" answerable,
+    /// which is exactly what the retry gate depends on. Callers must only call this
+    /// on a <see cref="ToolCallOutcome.Failed"/> record: this method does not itself
+    /// check <see cref="Outcome"/>, because what is and is not retryable is a policy
+    /// decision the store (which knows about <see cref="ToolCallOutcome.Unknown"/>
+    /// meaning "still in flight, do not touch" and <see cref="ToolCallOutcome.Succeeded"/>
+    /// meaning "already happened, do not implicitly redo") makes before calling here.
+    /// </summary>
+    public void ResetForRetry(DateTimeOffset now)
+    {
+        AttemptCount++;
+        Outcome = ToolCallOutcome.Unknown;
+        ResultJson = null;
+        CompletedAt = null;
+        RecordedAt = now;
     }
 }

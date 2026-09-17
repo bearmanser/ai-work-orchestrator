@@ -27,6 +27,20 @@ public sealed class InMemoryToolCallStore : IToolCallStore
     {
         lock (_gate)
         {
+            if (_records.TryGetValue(call.IdempotencyKey, out var existing))
+            {
+                switch (existing.Outcome)
+                {
+                    case ToolCallOutcome.Unknown:
+                        throw new UnreconciledOperationException(call.IdempotencyKey);
+                    case ToolCallOutcome.Succeeded:
+                        throw new OperationAlreadySucceededException(call.IdempotencyKey);
+                    case ToolCallOutcome.Failed:
+                        existing.ResetForRetry(now);
+                        return Task.FromResult(existing);
+                }
+            }
+
             var record = new ToolCallRecord(
                 Guid.CreateVersion7(),
                 call.TaskId,

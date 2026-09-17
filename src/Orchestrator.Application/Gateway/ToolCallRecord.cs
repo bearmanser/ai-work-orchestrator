@@ -10,6 +10,24 @@ public interface IToolCallStore
 {
     Task<ToolCallRecord?> FindByIdempotencyKeyAsync(string idempotencyKey, CancellationToken ct);
 
+    /// <summary>
+    /// Records intent to perform <paramref name="call"/>. There is exactly one row
+    /// per <see cref="ToolCallRecord.IdempotencyKey"/>, never two - two rows for the
+    /// same logical operation would make "is this operation still in flight?"
+    /// ambiguous, which is exactly what the retry gate depends on being answerable.
+    /// So when a record already exists for this key:
+    /// <list type="bullet">
+    /// <item><see cref="ToolCallOutcome.Unknown"/> - still unresolved/in flight;
+    /// throws <see cref="UnreconciledOperationException"/> rather than silently
+    /// reusing the row, which would defeat the retry gate.</item>
+    /// <item><see cref="ToolCallOutcome.Succeeded"/> - the non-idempotent action
+    /// already happened; throws <see cref="OperationAlreadySucceededException"/>
+    /// rather than implicitly redoing it.</item>
+    /// <item><see cref="ToolCallOutcome.Failed"/> - confirmed not to have happened;
+    /// the row is reused via <see cref="ToolCallRecord.ResetForRetry"/> for the new
+    /// attempt, and no new row is inserted.</item>
+    /// </list>
+    /// </summary>
     Task<ToolCallRecord> RecordIntentAsync(ToolCall call, PolicyDecision decision, DateTimeOffset now, CancellationToken ct);
 
     Task RecordSuccessAsync<TResult>(Guid recordId, TResult? value, DateTimeOffset now, CancellationToken ct);
@@ -41,6 +59,23 @@ public sealed class UnreconciledOperationException : Exception
 {
     public UnreconciledOperationException(string idempotencyKey)
         : base($"Operation '{idempotencyKey}' has an unknown outcome and must be reconciled before retry.")
+    {
+        IdempotencyKey = idempotencyKey;
+    }
+
+    public string IdempotencyKey { get; }
+}
+
+/// <summary>
+/// A non-idempotent action that already succeeded must not be silently redone.
+/// Unlike <see cref="ToolCallOutcome.Failed"/> (confirmed absent - safe to retry),
+/// re-running a confirmed success is not obviously safe for any action this
+/// codebase currently records intent for, so it is refused rather than guessed at.
+/// </summary>
+public sealed class OperationAlreadySucceededException : Exception
+{
+    public OperationAlreadySucceededException(string idempotencyKey)
+        : base($"Operation '{idempotencyKey}' already succeeded and must not be retried.")
     {
         IdempotencyKey = idempotencyKey;
     }

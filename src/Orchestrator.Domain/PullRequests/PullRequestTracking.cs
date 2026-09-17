@@ -57,6 +57,14 @@ public sealed class PullRequestTracking
         feedback.Add(item);
     }
 
+    public void MarkFeedbackHandled(int threadId, string text, FeedbackHandling handling)
+    {
+        var index = feedback.FindIndex(f =>
+            f.ThreadId == threadId && string.Equals(f.Text, text, StringComparison.Ordinal));
+        if (index >= 0)
+            feedback[index] = feedback[index] with { Handling = handling };
+    }
+
     public void UpdateHeadCommit(string headCommit, DateTimeOffset now)
     {
         ArgumentNullException.ThrowIfNull(headCommit);

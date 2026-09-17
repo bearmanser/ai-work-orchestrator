@@ -186,6 +186,16 @@ builder.Services.AddHttpClient<AzureDevOpsHttpClient>();
 builder.Services.AddScoped<IPullRequestHost, AzureDevOpsPullRequestHost>();
 builder.Services.AddScoped<PullRequestCreationStepHandler>();
 builder.Services.AddScoped<IStepHandler, PullRequestCreationStepHandler>();
+builder.Services.AddScoped<TaskCompletionService>();
+builder.Services.AddScoped<FeedbackStepHandler>();
+builder.Services.AddScoped<IStepHandler, FeedbackStepHandler>();
+
+var taskCompletionOptions = new TaskCompletionOptions();
+builder.Configuration.GetSection("Orchestrator:TaskCompletion").Bind(taskCompletionOptions);
+builder.Services.AddSingleton(taskCompletionOptions);
+builder.Services.AddScoped<TaskCompletionService>();
+builder.Services.AddScoped<FeedbackStepHandler>();
+builder.Services.AddScoped<IStepHandler, FeedbackStepHandler>();
 builder.Services.AddScoped<IDomainDataSource>(sp => new NamedQueryDomainDataSource(
     new P1Options(Path.Combine(builder.Environment.ContentRootPath, "config", "p1-named-queries.json")),
     sp.GetRequiredService<ISecretStore>()));

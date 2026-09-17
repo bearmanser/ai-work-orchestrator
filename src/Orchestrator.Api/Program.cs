@@ -6,6 +6,7 @@ using Hangfire.PostgreSql;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
 using OpenTelemetry.Metrics;
+using Orchestrator.Adapters.Agent;
 using Orchestrator.Adapters.Slack;
 using Orchestrator.Api.Auth;
 using Orchestrator.Api.Dashboard;
@@ -134,6 +135,16 @@ builder.Services.AddSingleton(meetingTranscriptOptions);
 var gitCatalogOptions = new GitCatalogOptions();
 builder.Configuration.GetSection("Orchestrator:Git").Bind(gitCatalogOptions);
 builder.Services.AddSingleton(gitCatalogOptions);
+
+// SandboxOptions.DockerCommand defaults to ["docker"] - what production (Linux) has on PATH.
+// Bind() is deliberately not used here: DockerCommand's default is itself a non-empty list, and
+// the configuration binder appends configured array entries onto an existing IReadOnlyList<T>
+// instance rather than replacing it, which would silently merge the two instead of overriding.
+var sandboxOptions = new SandboxOptions();
+var configuredDockerCommand = builder.Configuration.GetSection("Sandbox:DockerCommand").Get<string[]>();
+if (configuredDockerCommand is { Length: > 0 })
+    sandboxOptions.DockerCommand = configuredDockerCommand;
+builder.Services.AddSingleton(sandboxOptions);
 
 // OpenTelemetry metrics
 builder.Services.AddOpenTelemetry()

@@ -1,0 +1,67 @@
+name: orchestrator
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: orchestrator
+      POSTGRES_USER: orchestrator
+      POSTGRES_PASSWORD: orchestrator
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orchestrator"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # One-shot build of the sandbox image the SandboxedProcessRunner launches per agent run
+  # (`docker compose build worker-image-builder`, or just `docker compose build`). It is not
+  # meant to stay running - `docker compose up` starts it, it immediately exits, and that is
+  # expected.
+  worker-image-builder:
+    build:
+      context: .
+      dockerfile: worker.Dockerfile
+    image: orchestrator/worker:latest
+    command: ["true"]
+    restart: "no"
+
+  # The only route out of the `orchestrator-agent` network: sandboxed containers get HTTP_PROXY /
+  # HTTPS_PROXY pointed at this host and can reach only the hosts in egress-hosts.list. It also
+  # joins the default network, which is where its own route to the internet comes from.
+  egress-proxy:
+    image: alpine:3.20
+    container_name: egress-proxy
+    command:
+      - sh
+      - -c
+      - "apk add --no-cache tinyproxy && exec tinyproxy -d -c /etc/tinyproxy/tinyproxy.conf"
+    volumes:
+      - ./egress-allowlist.conf:/etc/tinyproxy/tinyproxy.conf:ro
+      - ./egress-hosts.list:/etc/tinyproxy/egress-hosts.list:ro
+    networks:
+      default: {}
+      orchestrator-agent:
+        # SandboxedProcessRunner points sandboxed containers at HTTP_PROXY=http://egress-proxy:3128;
+        # the alias below is what makes that hostname resolve on this network.
+        aliases:
+          - egress-proxy
+
+  # Task 50 adds an `api` service here (the orchestrator API itself). Leave room rather than
+  # restructuring this file for it.
+
+networks:
+  default: {}
+  # No route out except through egress-proxy above. SandboxedProcessRunner attaches every
+  # sandboxed agent container to this network and nothing else. Named explicitly (rather than
+  # left to the compose project prefix) because SandboxedProcessRunner passes this exact name to
+  # `docker run --network`.
+  orchestrator-agent:
+    name: orchestrator-agent
+    internal: true
+
+volumes:
+  postgres-data: {}

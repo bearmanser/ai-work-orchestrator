@@ -58,3 +58,66 @@ parsing.
 Claimed checks (`AgentResult.ClaimedChecks`) are produced by a fixed heuristic command list
 (`dotnet test`, `dotnet build`, `npm test`, etc.) matched against the free-text `result` field -
 this is only ever a hint to an operator about what the agent said it ran, never verified evidence.
+
+## Codex
+
+**Status: not yet verified against the real CLI.** Task 27 (Codex provider) could not obtain a
+working OpenAI API key in its build environment, so `ORCHESTRATOR_AGENT_SMOKE=1
+dotnet test --filter CodexCliSmokeTests` was not run successfully — see
+`tests/Orchestrator.Integration.Tests/CodexCliSmokeTests.cs`, which fails loudly with an
+actionable message when the smoke flag is set but `ORCHESTRATOR_SECRET_OPENAI_API_KEY` is not,
+rather than silently reporting a false pass. Whoever next runs that smoke test successfully should
+replace this section with what was actually observed, and correct any of the assumptions below
+that turn out to be wrong.
+
+Everything below is the *assumed* contract, taken from the task brief and encoded in
+`CodexEventStreamParser`/`CodexEventStreamParserTests` (unit-tested against recorded JSONL, not a
+live CLI):
+
+### Invocation
+
+```json
+"codex": {
+  "Image": "orchestrator/worker:latest",
+  "Command": ["codex"],
+  "Arguments": ["exec", "--json", "--sandbox", "workspace-write", "--cd", "/work"],
+  "PromptVia": "Stdin",
+  "ApiKeySecretRef": "openai.api-key",
+  "ApiKeyEnvironmentVariable": "OPENAI_API_KEY",
+  "Model": "gpt-5-codex"
+}
+```
+
+The prompt (from `PromptRenderer.Render`) is written to the process's stdin; the API key is
+injected as the `OPENAI_API_KEY` environment variable inside the sandbox container.
+
+### Output shape
+
+Codex emits one JSON object per line on stdout (JSONL), not a single envelope. Event types
+observed/assumed:
+
+- `{"type":"session.created","session_id":"..."}` — ignored.
+- `{"type":"item.completed","item":{"type":"command_execution","command":"...","exit_code":0}}`
+  — becomes a `ClaimedCheck(Command, ClaimedPassed: exit_code == 0)`. This is a heuristic derived
+  from the agent's own report of what it ran, not a verified check result (Task 29's runtime
+  `CheckRunner` is the source of truth).
+- `{"type":"item.completed","item":{"type":"agent_message","text":"..."}}` — the *last* such event
+  in the stream is treated as the agent's authoritative summary (an agent revising its own summary
+  mid-turn means the final one wins); currently surfaced via `AgentResult.Limitations`.
+- `{"type":"turn.completed","usage":{"input_tokens":N,"output_tokens":N}}` — terminal event,
+  maps to `AgentStatus.Succeeded`.
+- `{"type":"turn.failed","error":{"message":"..."}}` — terminal event, maps to
+  `AgentStatus.Failed`, with `FailureDetail` set from `error.message`.
+- Any other `type` value (including ones this parser predates) is ignored, not fatal.
+- A stream that ends without a `turn.completed` or `turn.failed` event maps to
+  `AgentStatus.Partial` (the turn was cut off, e.g. by a timeout upstream).
+- A line that fails to parse as JSON (e.g. a stray banner interleaved into stdout) is skipped;
+  it does not abort parsing of the events around it.
+
+Notably absent from the assumed contract: Codex's JSONL, unlike Claude's single-envelope output,
+has no observed field carrying a total cost in USD, so `AgentResult.Usage.CostUsd` is currently
+always `0m` for this provider — this is "cost unknown," not "this run was free," and the type
+system does not yet distinguish the two (flagged by review for whoever builds cost/budget
+tracking on `AgentResult`). `Usage.Duration` is not derived from the event stream either; the
+provider (`CodexCliProvider`) splices in the sandbox's own measured wall-clock duration after
+parsing.

@@ -28,4 +28,5 @@ public sealed record AgentResult(
     IReadOnlyList<string> UnresolvedQuestions,
     IReadOnlyList<string> Limitations,
     AgentUsage Usage,
-    string? FailureDetail);
+    string? FailureDetail,
+    string? OutputText = null);

@@ -7,11 +7,17 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
 using OpenTelemetry.Metrics;
 using Orchestrator.Adapters.Agent;
+using Orchestrator.Adapters.Agent.Providers;
+using Orchestrator.Adapters.Git;
+using Orchestrator.Adapters.Obsidian;
 using Orchestrator.Adapters.Slack;
 using Orchestrator.Api.Auth;
 using Orchestrator.Api.Dashboard;
 using Orchestrator.Api.Endpoints;
 using Orchestrator.Api.Webhooks;
+using Orchestrator.Application.Agents;
+using Orchestrator.Application.Approvals;
+using Orchestrator.Application.Context;
 using Orchestrator.Application.Gateway;
 using Orchestrator.Application.Humans;
 using Orchestrator.Application.Identity;
@@ -128,6 +134,68 @@ builder.Services.AddScoped<ITaskQueryStore, EfTaskQueryStore>();
 var taskIntakeOptions = new TaskIntakeOptions();
 builder.Configuration.GetSection("Orchestrator:Intake").Bind(taskIntakeOptions);
 builder.Services.AddSingleton(taskIntakeOptions);
+
+var gitRoot = builder.Configuration["Orchestrator:Git:Root"] ?? string.Empty;
+builder.Services.AddSingleton(new GitOptions { Root = gitRoot });
+builder.Services.AddScoped<IWorkspaceFileReader, MirrorFileReader>();
+builder.Services.AddScoped<IWorkspaceStore, EfWorkspaceStore>();
+builder.Services.AddScoped<IGitWorkspace>(sp => new LibGit2Workspace(
+    gitRoot,
+    sp.GetRequiredService<ISecretStore>(),
+    sp.GetRequiredService<TimeProvider>(),
+    sp.GetRequiredService<IWorkspaceStore>()));
+
+builder.Services.AddScoped<SandboxedProcessRunner>();
+var claudeOptions = new ClaudeCliOptions();
+builder.Configuration.GetSection("AgentProviders:claude").Bind(claudeOptions);
+builder.Services.AddSingleton(claudeOptions);
+var codexOptions = builder.Configuration.GetSection("AgentProviders:codex").Get<CodexCliOptions>()
+    ?? new CodexCliOptions(
+        "orchestrator/worker:latest",
+        ["codex"],
+        ["exec", "--json", "--sandbox", "workspace-write", "--cd", "/work"],
+        "Stdin",
+        "openai.api-key",
+        "OPENAI_API_KEY",
+        "gpt-5-codex",
+        ["api.openai.com"]);
+builder.Services.AddSingleton(codexOptions);
+builder.Services.AddScoped<ICodingAgent, ReplayAgentProvider>(sp => new ReplayAgentProvider(
+    builder.Configuration["Orchestrator:Agents:ReplaysDirectory"] ?? "agent-replays"));
+builder.Services.AddScoped<ICodingAgent, ClaudeCliProvider>();
+builder.Services.AddScoped<ICodingAgent, CodexCliProvider>();
+builder.Services.AddScoped<AgentRouter>();
+
+builder.Services.AddScoped<IPlanningScopeStore, EfPlanningScopeStore>();
+builder.Services.AddScoped<IContextSnapshotStore, EfContextSnapshotStore>();
+builder.Services.AddSingleton<IApprovalStore, InMemoryApprovalStore>();
+builder.Services.AddScoped<ApprovalService>();
+builder.Services.AddScoped<IPlanConfirmationStore, EfPlanConfirmationStore>();
+builder.Services.AddScoped<PlanConfirmationService>();
+builder.Services.AddScoped<ContextAssembler>();
+builder.Services.AddScoped<PlanningStepHandler>();
+builder.Services.AddScoped<IStepHandler, PlanningStepHandler>();
+
+var planningOptions = new PlanningOptions();
+builder.Configuration.GetSection("Orchestrator:Planning").Bind(planningOptions);
+builder.Services.AddSingleton(planningOptions);
+
+var planConfirmationOptions = new PlanConfirmationOptions();
+builder.Configuration.GetSection("Orchestrator:Plans").Bind(planConfirmationOptions);
+builder.Services.AddSingleton(planConfirmationOptions);
+
+var vaultRoot = builder.Configuration["Orchestrator:Vault:Root"] ?? string.Empty;
+if (string.IsNullOrWhiteSpace(vaultRoot))
+{
+    builder.Services.AddSingleton<IVaultStore, NullVaultStore>();
+}
+else
+{
+    var vaultIndexDirectory = builder.Configuration["Orchestrator:Vault:IndexDirectory"]
+        ?? Path.Combine(vaultRoot, ".orchestrator-index");
+    builder.Services.AddSingleton<IVaultStore>(sp => new FileSystemVaultStore(
+        vaultRoot, vaultIndexDirectory, sp.GetRequiredService<TimeProvider>()));
+}
 
 var meetingTranscriptOptions = new MeetingTranscriptOptions();
 builder.Configuration.GetSection("Orchestrator:Meetings").Bind(meetingTranscriptOptions);

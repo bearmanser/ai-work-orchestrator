@@ -54,7 +54,7 @@ public sealed class PlanConfirmationService(
     PlanConfirmationOptions options)
 {
     public async Task<PlanRevision> PostForConfirmationAsync(
-        Guid taskId, PlanContent content, CancellationToken ct)
+        Guid taskId, PlanContent content, CancellationToken ct, Guid? contextSnapshotId = null)
     {
         if (content.OpenQuestions.Count > 0)
         {
@@ -65,7 +65,7 @@ public sealed class PlanConfirmationService(
         var task = await store.GetTaskAsync(taskId, ct);
         var now = clock.GetUtcNow();
         var existing = await store.ListRevisionsAsync(taskId, ct);
-        var revision = new PlanRevision(taskId, existing.Count + 1, content);
+        var revision = new PlanRevision(taskId, existing.Count + 1, content, contextSnapshotId);
 
         foreach (var older in existing.Where(r => r.ConfirmationStatus == ConfirmationStatus.Pending))
             older.Supersede(revision.Id);

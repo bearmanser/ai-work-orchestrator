@@ -13,7 +13,7 @@ namespace Orchestrator.Adapters.Obsidian;
 /// Search fans out through a rebuildable SQLite index outside the vault, with
 /// path-prefix filtering applied before any note file is read.
 /// </summary>
-public sealed class FileSystemVaultStore
+public sealed class FileSystemVaultStore : IVaultStore
 {
     private const string RevisionsDirectoryName = ".orchestrator-revisions";
 

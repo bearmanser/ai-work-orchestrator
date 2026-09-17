@@ -35,6 +35,7 @@
     <ProjectReference Include="..\..\src\Orchestrator.Infrastructure\Orchestrator.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\Orchestrator.Api\Orchestrator.Api.csproj" />
     <ProjectReference Include="..\..\src\Orchestrator.Cli\Orchestrator.Cli.csproj" />
+    <ProjectReference Include="..\..\src\Orchestrator.Adapters.Agent\Orchestrator.Adapters.Agent.csproj" />
   </ItemGroup>
 
 </Project>

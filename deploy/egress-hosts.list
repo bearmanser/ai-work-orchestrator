@@ -1,0 +1,8 @@
+# Companion file to egress-allowlist.conf. One extended-regex pattern per line, matched against
+# "host[:port]" by tinyproxy's Filter directive. Keep this exactly in sync with what agents
+# actually need to reach.
+^api\.anthropic\.com(:[0-9]+)?$
+^api\.openai\.com(:[0-9]+)?$
+# Placeholder Azure DevOps host - replace with the organization's real dev.azure.com hostname
+# (or the on-prem Azure DevOps Server host) once that is known.
+^dev\.azure\.com(:[0-9]+)?$

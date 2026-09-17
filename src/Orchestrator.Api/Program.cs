@@ -21,6 +21,7 @@ using Orchestrator.Application.Ports;
 using Orchestrator.Application.Repositories;
 using Orchestrator.Application.Slack;
 using Orchestrator.Application.Steps;
+using Orchestrator.Infrastructure.Artifacts;
 using Orchestrator.Infrastructure.Audit;
 using Orchestrator.Infrastructure.Identity;
 using Orchestrator.Infrastructure.Inbox;
@@ -115,6 +116,13 @@ builder.Services.AddSingleton(new WorkingDayCalculator(new HashSet<DateOnly>()))
 builder.Services.AddScoped<HumanQuestionService>();
 builder.Services.AddScoped<QuestionEscalationJob>();
 
+builder.Services.AddScoped<IArtifactStore>(sp =>
+    new FileSystemArtifactStore(
+        builder.Configuration["Orchestrator:Artifacts:Root"] ?? "artifacts",
+        sp.GetRequiredService<OrchestratorDbContext>(),
+        sp.GetRequiredService<TimeProvider>()));
+builder.Services.AddScoped<ITaskQueryStore, EfTaskQueryStore>();
+
 var taskIntakeOptions = new TaskIntakeOptions();
 builder.Configuration.GetSection("Orchestrator:Intake").Bind(taskIntakeOptions);
 builder.Services.AddSingleton(taskIntakeOptions);
@@ -175,6 +183,7 @@ OperationsEndpoints.Map(app);
 TaskOperationsEndpoints.Map(app);
 AzureDevOpsWebhookEndpoint.Map(app);
 SlackWebhookEndpoint.Map(app);
+TaskQueryEndpoints.Map(app);
 app.UseHangfireDashboard("/hangfire", new DashboardOptions
 {
     Authorization = [new AdminOnlyDashboardFilter()],

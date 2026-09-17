@@ -46,6 +46,8 @@ public sealed class WorkTask
     {
         if (!TaskStateMachine.TryTransition(State, trigger, out var next))
             throw new InvalidTransitionException(State, trigger);
+
+        TaskPhaseMetrics.RecordPhaseDuration(State, UpdatedAt, now);
         State = next;
         UpdatedAt = now.ToUniversalTime();
     }

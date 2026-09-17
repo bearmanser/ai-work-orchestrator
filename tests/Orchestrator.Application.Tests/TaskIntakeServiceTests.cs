@@ -190,6 +190,7 @@ public sealed class TaskIntakeServiceTests
     private sealed class InMemoryOperationalControls : IOperationalControls
     {
         private bool _paused;
+        private readonly Dictionary<string, bool> _integrationDisabled = [];
 
         public Task PauseIntakeAsync(string actor, CancellationToken ct)
         {
@@ -204,6 +205,30 @@ public sealed class TaskIntakeServiceTests
         }
 
         public Task<bool> IsIntakePausedAsync(CancellationToken ct) => Task.FromResult(_paused);
+
+        public Task DisableIntegrationAsync(string name, string actor, CancellationToken ct)
+        {
+            _integrationDisabled[name] = true;
+            return Task.CompletedTask;
+        }
+
+        public Task EnableIntegrationAsync(string name, string actor, CancellationToken ct)
+        {
+            _integrationDisabled[name] = false;
+            return Task.CompletedTask;
+        }
+
+        public Task<bool> IsIntegrationDisabledAsync(string name, CancellationToken ct) =>
+            Task.FromResult(_integrationDisabled.GetValueOrDefault(name, false));
+
+        public Task<bool> CancelTaskAsync(Guid taskId, string actor, CancellationToken ct) => Task.FromResult(false);
+
+        public Task RevokeAuthorizationAsync(Guid taskId, string actor, CancellationToken ct) => Task.CompletedTask;
+
+        public Task RetryStepAsync(Guid taskId, Guid stepId, string actor, CancellationToken ct) => Task.CompletedTask;
+
+        public Task<ReconciliationSummary> ReconcileTaskAsync(Guid taskId, string actor, CancellationToken ct) =>
+            Task.FromResult(new ReconciliationSummary(0, 0, 0, []));
     }
 
     private sealed class RecordingAuditWriter : IAuditWriter

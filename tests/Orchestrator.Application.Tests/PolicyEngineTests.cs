@@ -1,3 +1,4 @@
+using Orchestrator.Application.Operations;
 using Orchestrator.Application.Policy;
 using Orchestrator.Application.Ports;
 using Orchestrator.Domain.Authorization;
@@ -33,7 +34,8 @@ public class PolicyEngineTests
     private static PolicyRequest Request(ActionKind action, ResourceScope resource) => new(
         TaskId, "requester@kameleongruppen.no", action, resource, Envelope(), Ledger(), Now, "corr-test-1");
 
-    private static PolicyEngine Engine() => new(new RecordingAuditWriter(), PolicyRules.Default);
+    private static PolicyEngine Engine(IOperationalControls? operations = null) =>
+        new(new RecordingAuditWriter(), PolicyRules.Default, operations ?? new FakeOperationalControls());
 
     [Fact]
     public async Task Evaluate_ActionInsideEnvelope_Permits()
@@ -89,7 +91,7 @@ public class PolicyEngineTests
     public async Task Evaluate_EveryDecision_WritesExactlyOneAuditEntry()
     {
         var audit = new RecordingAuditWriter();
-        await new PolicyEngine(audit, PolicyRules.Default).EvaluateAsync(
+        await new PolicyEngine(audit, PolicyRules.Default, new FakeOperationalControls()).EvaluateAsync(
             Request(ActionKind.RepositoryRead, ResourceScope.Repository(RepoA, "main")), default);
         audit.Entries.Count.ShouldBe(1);
         audit.Entries[0].Action.ShouldBe("policy.evaluate");
@@ -103,7 +105,7 @@ public class PolicyEngineTests
             with
         { CorrelationId = "caller-supplied-correlation-id" };
 
-        await new PolicyEngine(audit, PolicyRules.Default).EvaluateAsync(request, default);
+        await new PolicyEngine(audit, PolicyRules.Default, new FakeOperationalControls()).EvaluateAsync(request, default);
 
         audit.Entries.Count.ShouldBe(1);
         audit.Entries[0].CorrelationId.ShouldBe("caller-supplied-correlation-id");
@@ -121,6 +123,19 @@ public class PolicyEngineTests
         decision.ShouldBeOfType<PolicyDecision.Denied>();
     }
 
+    [Fact]
+    public async Task Evaluate_DisabledIntegration_DeniesTheP1ResourceEvenWhenTheEnvelopeWouldCoverIt()
+    {
+        var operations = new FakeOperationalControls();
+        operations.Disable("staging");
+
+        var decision = await Engine(operations).EvaluateAsync(
+            Request(ActionKind.DomainRead, ResourceScope.P1("staging", "KAMELEON-TEST")), default);
+
+        decision.ShouldBeOfType<PolicyDecision.Denied>();
+        ((PolicyDecision.Denied)decision).Reason.ShouldContain("disabled");
+    }
+
     private sealed class RecordingAuditWriter : IAuditWriter
     {
         public List<AuditEntry> Entries { get; } = [];
@@ -130,5 +145,33 @@ public class PolicyEngineTests
             Entries.Add(entry);
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class FakeOperationalControls : IOperationalControls
+    {
+        private readonly HashSet<string> _disabled = new(StringComparer.OrdinalIgnoreCase);
+
+        public void Disable(string name) => _disabled.Add(name);
+
+        public Task PauseIntakeAsync(string actor, CancellationToken ct) => Task.CompletedTask;
+        public Task ResumeIntakeAsync(string actor, CancellationToken ct) => Task.CompletedTask;
+        public Task<bool> IsIntakePausedAsync(CancellationToken ct) => Task.FromResult(false);
+        public Task DisableIntegrationAsync(string name, string actor, CancellationToken ct)
+        {
+            _disabled.Add(name);
+            return Task.CompletedTask;
+        }
+        public Task EnableIntegrationAsync(string name, string actor, CancellationToken ct)
+        {
+            _disabled.Remove(name);
+            return Task.CompletedTask;
+        }
+        public Task<bool> IsIntegrationDisabledAsync(string name, CancellationToken ct) =>
+            Task.FromResult(_disabled.Contains(name));
+        public Task<bool> CancelTaskAsync(Guid taskId, string actor, CancellationToken ct) => Task.FromResult(false);
+        public Task RevokeAuthorizationAsync(Guid taskId, string actor, CancellationToken ct) => Task.CompletedTask;
+        public Task RetryStepAsync(Guid taskId, Guid stepId, string actor, CancellationToken ct) => Task.CompletedTask;
+        public Task<ReconciliationSummary> ReconcileTaskAsync(Guid taskId, string actor, CancellationToken ct) =>
+            Task.FromResult(new ReconciliationSummary(0, 0, 0, []));
     }
 }

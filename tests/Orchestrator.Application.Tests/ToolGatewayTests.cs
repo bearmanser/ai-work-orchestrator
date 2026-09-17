@@ -1,9 +1,11 @@
 using System.Text.Json;
 using Orchestrator.Application.Gateway;
+using Orchestrator.Application.Operations;
 using Orchestrator.Application.Policy;
 using Orchestrator.Application.Ports;
 using Orchestrator.Domain.Authorization;
 using Orchestrator.Domain.Budgets;
+using Orchestrator.Domain.Operations;
 using Shouldly;
 
 namespace Orchestrator.Application.Tests;
@@ -48,10 +50,10 @@ public class ToolGatewayTests
     {
         var effectiveStore = store ?? new InMemoryToolCallStore(reorder);
         return new ToolGateway(
-            new PolicyEngine(new RecordingAuditWriter(), PolicyRules.Default),
+            new PolicyEngine(new RecordingAuditWriter(), PolicyRules.Default, new NoOpOperationalControls()),
             effectiveStore,
             new RecordingAuditWriter(),
-            TimeProvider.System);
+            new ManualTimeProvider(Now));
     }
 
     [Fact]
@@ -154,6 +156,7 @@ public class ToolGatewayTests
                 Guid.CreateVersion7(),
                 call.TaskId,
                 call.StepId,
+                call.Action,
                 call.OperationId,
                 call.IdempotencyKey,
                 ToolCallOutcome.Unknown,
@@ -168,10 +171,9 @@ public class ToolGatewayTests
         public Task RecordSuccessAsync<TResult>(Guid recordId, TResult? value, DateTimeOffset now, CancellationToken ct)
         {
             order?.Add("record-outcome");
-            var index = Records.FindIndex(r => r.Id == recordId);
-            var existing = Records[index];
+            var existing = Records.Single(r => r.Id == recordId);
             var json = value is null ? null : JsonSerializer.Serialize(value);
-            Records[index] = existing with { Outcome = ToolCallOutcome.Succeeded, ResultJson = json, CompletedAt = now };
+            existing.Complete(ToolCallOutcome.Succeeded, json, now);
             return Task.CompletedTask;
         }
 
@@ -179,5 +181,50 @@ public class ToolGatewayTests
         {
             return record.ResultJson is null ? default : JsonSerializer.Deserialize<TResult>(record.ResultJson);
         }
+
+        public Task<bool> HasUnknownOutcomesAsync(Guid taskId, CancellationToken ct)
+        {
+            return Task.FromResult(Records.Any(r => r.TaskId == taskId && r.Outcome == ToolCallOutcome.Unknown));
+        }
+
+        public Task<IReadOnlyList<ToolCallRecord>> FindUnknownAsync(Guid taskId, CancellationToken ct)
+        {
+            IReadOnlyList<ToolCallRecord> unknown =
+                Records.Where(r => r.TaskId == taskId && r.Outcome == ToolCallOutcome.Unknown).ToList();
+            return Task.FromResult(unknown);
+        }
+
+        public Task ResolveAsync(Guid recordId, ToolCallOutcome outcome, DateTimeOffset now, CancellationToken ct)
+        {
+            var record = Records.SingleOrDefault(r => r.Id == recordId);
+            record?.Complete(outcome, record.ResultJson, now);
+            return Task.CompletedTask;
+        }
+    }
+
+    /// <summary>
+    /// A fixed clock so envelope expiry is judged against the same <see cref="Now"/>
+    /// the test fixtures were built with, not the real wall clock - using
+    /// TimeProvider.System here made every test in this file flake the day after it
+    /// was written, once real time passed the envelope's fixed ExpiresAt.
+    /// </summary>
+    private sealed class ManualTimeProvider(DateTimeOffset now) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => now;
+    }
+
+    private sealed class NoOpOperationalControls : IOperationalControls
+    {
+        public Task PauseIntakeAsync(string actor, CancellationToken ct) => Task.CompletedTask;
+        public Task ResumeIntakeAsync(string actor, CancellationToken ct) => Task.CompletedTask;
+        public Task<bool> IsIntakePausedAsync(CancellationToken ct) => Task.FromResult(false);
+        public Task DisableIntegrationAsync(string name, string actor, CancellationToken ct) => Task.CompletedTask;
+        public Task EnableIntegrationAsync(string name, string actor, CancellationToken ct) => Task.CompletedTask;
+        public Task<bool> IsIntegrationDisabledAsync(string name, CancellationToken ct) => Task.FromResult(false);
+        public Task<bool> CancelTaskAsync(Guid taskId, string actor, CancellationToken ct) => Task.FromResult(false);
+        public Task RevokeAuthorizationAsync(Guid taskId, string actor, CancellationToken ct) => Task.CompletedTask;
+        public Task RetryStepAsync(Guid taskId, Guid stepId, string actor, CancellationToken ct) => Task.CompletedTask;
+        public Task<ReconciliationSummary> ReconcileTaskAsync(Guid taskId, string actor, CancellationToken ct) =>
+            Task.FromResult(new ReconciliationSummary(0, 0, 0, []));
     }
 }

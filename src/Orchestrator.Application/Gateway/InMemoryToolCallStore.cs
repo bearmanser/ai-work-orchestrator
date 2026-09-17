@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Orchestrator.Domain.Authorization;
+using Orchestrator.Domain.Operations;
 
 namespace Orchestrator.Application.Gateway;
 
@@ -26,10 +27,25 @@ public sealed class InMemoryToolCallStore : IToolCallStore
     {
         lock (_gate)
         {
+            if (_records.TryGetValue(call.IdempotencyKey, out var existing))
+            {
+                switch (existing.Outcome)
+                {
+                    case ToolCallOutcome.Unknown:
+                        throw new UnreconciledOperationException(call.IdempotencyKey);
+                    case ToolCallOutcome.Succeeded:
+                        throw new OperationAlreadySucceededException(call.IdempotencyKey);
+                    case ToolCallOutcome.Failed:
+                        existing.ResetForRetry(now);
+                        return Task.FromResult(existing);
+                }
+            }
+
             var record = new ToolCallRecord(
                 Guid.CreateVersion7(),
                 call.TaskId,
                 call.StepId,
+                call.Action,
                 call.OperationId,
                 call.IdempotencyKey,
                 ToolCallOutcome.Unknown,
@@ -46,17 +62,11 @@ public sealed class InMemoryToolCallStore : IToolCallStore
     {
         lock (_gate)
         {
-            var key = _records.Values.FirstOrDefault(r => r.Id == recordId)?.IdempotencyKey;
-            if (key is not null)
-            {
-                var existing = _records[key];
-                _records[key] = existing with
-                {
-                    Outcome = ToolCallOutcome.Succeeded,
-                    ResultJson = value is null ? null : JsonSerializer.Serialize(value),
-                    CompletedAt = now,
-                };
-            }
+            var existing = _records.Values.FirstOrDefault(r => r.Id == recordId);
+            existing?.Complete(
+                ToolCallOutcome.Succeeded,
+                value is null ? null : JsonSerializer.Serialize(value),
+                now);
 
             return Task.CompletedTask;
         }
@@ -64,4 +74,34 @@ public sealed class InMemoryToolCallStore : IToolCallStore
 
     public TResult? Deserialize<TResult>(ToolCallRecord record) =>
         record.ResultJson is null ? default : JsonSerializer.Deserialize<TResult>(record.ResultJson);
+
+    public Task<bool> HasUnknownOutcomesAsync(Guid taskId, CancellationToken ct)
+    {
+        lock (_gate)
+        {
+            var hasUnknown = _records.Values.Any(r => r.TaskId == taskId && r.Outcome == ToolCallOutcome.Unknown);
+            return Task.FromResult(hasUnknown);
+        }
+    }
+
+    public Task<IReadOnlyList<ToolCallRecord>> FindUnknownAsync(Guid taskId, CancellationToken ct)
+    {
+        lock (_gate)
+        {
+            IReadOnlyList<ToolCallRecord> unknown = _records.Values
+                .Where(r => r.TaskId == taskId && r.Outcome == ToolCallOutcome.Unknown)
+                .ToList();
+            return Task.FromResult(unknown);
+        }
+    }
+
+    public Task ResolveAsync(Guid recordId, ToolCallOutcome outcome, DateTimeOffset now, CancellationToken ct)
+    {
+        lock (_gate)
+        {
+            var record = _records.Values.FirstOrDefault(r => r.Id == recordId);
+            record?.Complete(outcome, record.ResultJson, now);
+            return Task.CompletedTask;
+        }
+    }
 }

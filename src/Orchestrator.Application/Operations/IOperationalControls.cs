@@ -9,4 +9,23 @@ public interface IOperationalControls
     Task PauseIntakeAsync(string actor, CancellationToken ct);
     Task ResumeIntakeAsync(string actor, CancellationToken ct);
     Task<bool> IsIntakePausedAsync(CancellationToken ct);
+    Task DisableIntegrationAsync(string name, string actor, CancellationToken ct);
+    Task EnableIntegrationAsync(string name, string actor, CancellationToken ct);
+    Task<bool> IsIntegrationDisabledAsync(string name, CancellationToken ct);
+    /// <summary>
+    /// Cancels the task. Returns true when the task had an open pull request at the
+    /// moment of cancellation, so the caller can tell the requester it remains open -
+    /// cancellation never closes a PR or reverts any other already-published effect.
+    /// </summary>
+    Task<bool> CancelTaskAsync(Guid taskId, string actor, CancellationToken ct);
+    Task RevokeAuthorizationAsync(Guid taskId, string actor, CancellationToken ct);
+    Task RetryStepAsync(Guid taskId, Guid stepId, string actor, CancellationToken ct);
+
+    /// <summary>
+    /// Resolves the task's Unknown tool-call outcomes against remote state and
+    /// returns a summary distinguishing records actually resolved from records left
+    /// Unknown because no reconciler exists for their target - an operator must be
+    /// able to tell "checked and it was fine" apart from "nobody checked".
+    /// </summary>
+    Task<ReconciliationSummary> ReconcileTaskAsync(Guid taskId, string actor, CancellationToken ct);
 }

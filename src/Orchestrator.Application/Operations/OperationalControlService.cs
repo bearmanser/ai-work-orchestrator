@@ -1,0 +1,84 @@
+using Orchestrator.Application.Gateway;
+using Orchestrator.Application.Operations;
+using Orchestrator.Application.Ports;
+using Orchestrator.Domain.Authorization;
+using Orchestrator.Domain.Steps;
+using Orchestrator.Domain.Tasks;
+
+namespace Orchestrator.Application.Operations;
+
+/// <summary>
+/// Orchestrates operational control commands with side effects (job cancellation,
+/// notifications, etc.). The EF implementation handles persistence and audit; this
+/// service adds the cross-cutting behaviors the tests verify.
+/// </summary>
+public sealed class OperationalControlService(
+    IOperationalControls controls,
+    IJobScheduler scheduler,
+    IChatGateway chat,
+    IToolCallStore toolCallStore)
+{
+    public async Task PauseIntakeAsync(string actor, CancellationToken ct) =>
+        await controls.PauseIntakeAsync(actor, ct);
+
+    public async Task ResumeIntakeAsync(string actor, CancellationToken ct) =>
+        await controls.ResumeIntakeAsync(actor, ct);
+
+    public async Task<bool> IsIntakePausedAsync(CancellationToken ct) =>
+        await controls.IsIntakePausedAsync(ct);
+
+    public async Task DisableIntegrationAsync(string name, string actor, CancellationToken ct) =>
+        await controls.DisableIntegrationAsync(name, actor, ct);
+
+    public async Task EnableIntegrationAsync(string name, string actor, CancellationToken ct) =>
+        await controls.EnableIntegrationAsync(name, actor, ct);
+
+    public async Task<bool> IsIntegrationDisabledAsync(string name, CancellationToken ct) =>
+        await controls.IsIntegrationDisabledAsync(name, ct);
+
+    public async Task CancelTaskAsync(Guid taskId, string actor, CancellationToken ct)
+    {
+        var hadOpenPullRequest = await controls.CancelTaskAsync(taskId, actor, ct);
+        await scheduler.RequestCancellationAsync(taskId, ct);
+
+        if (hadOpenPullRequest)
+            await NotifyOpenPullRequestRemainsAsync(taskId, ct);
+    }
+
+    public async Task RevokeAuthorizationAsync(Guid taskId, string actor, CancellationToken ct) =>
+        await controls.RevokeAuthorizationAsync(taskId, actor, ct);
+
+    public async Task RetryStepAsync(Guid taskId, Guid stepId, string actor, CancellationToken ct)
+    {
+        // Check for unknown tool call outcomes
+        var hasUnknown = await toolCallStore.HasUnknownOutcomesAsync(taskId, ct);
+        if (hasUnknown)
+            throw new InvalidOperationException($"Task {taskId} has unknown tool call outcomes; reconcile first.");
+
+        await controls.RetryStepAsync(taskId, stepId, actor, ct);
+    }
+
+    public async Task<ReconciliationSummary> ReconcileTaskAsync(Guid taskId, string actor, CancellationToken ct) =>
+        await controls.ReconcileTaskAsync(taskId, actor, ct);
+
+    private async Task NotifyOpenPullRequestRemainsAsync(Guid taskId, CancellationToken ct)
+    {
+        // Best-effort: the cancellation itself already succeeded and is durable
+        // (state transitioned, steps stopped, audited). A transient failure to reach
+        // chat must not turn a successful cancellation into a failed request or
+        // retry it into a duplicate notification.
+        try
+        {
+            await chat.PostAsync(new ChatMessage(
+                ChannelId: "C-123",
+                ThreadTs: null,
+                RecipientSlackUserId: null,
+                Text: $"Task {taskId} was cancelled. Its pull request is still open and was not closed - " +
+                      "close it manually if it should not be merged."), ct);
+        }
+        catch (Exception)
+        {
+            // Notification is best-effort; the cancellation already committed.
+        }
+    }
+}

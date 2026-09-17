@@ -1,3 +1,4 @@
+using Orchestrator.Application.Operations;
 using Orchestrator.Application.Ports;
 using Orchestrator.Domain.Authorization;
 using Orchestrator.Domain.Budgets;
@@ -48,19 +49,20 @@ public sealed record PolicyRequest(
 /// 1. Envelope revoked or expired -> Denied.
 /// 2. Budget exhausted -> Denied.
 /// 3. Resource targets a forbidden (production) P1 environment -> Denied, unconditionally.
-/// 4. Envelope does not cover the action -> Denied.
-/// 5. Action is always-approval-gated -> ApprovalRequired.
-/// 6. Otherwise -> Permitted.
+/// 4. Integration disabled -> Denied.
+/// 5. Envelope does not cover the action -> Denied.
+/// 6. Action is always-approval-gated -> ApprovalRequired.
+/// 7. Otherwise -> Permitted.
 ///
 /// Every call writes exactly one audit entry, whatever the outcome.
 /// </summary>
-public sealed class PolicyEngine(IAuditWriter auditWriter, PolicyRules rules)
+public sealed class PolicyEngine(IAuditWriter auditWriter, PolicyRules rules, IOperationalControls operations)
 {
     private const string AuditAction = "policy.evaluate";
 
     public async Task<PolicyDecision> EvaluateAsync(PolicyRequest request, CancellationToken ct)
     {
-        var decision = Evaluate(request);
+        var decision = await Evaluate(request, ct);
 
         await auditWriter.RecordAsync(new AuditEntry(
             Actor: request.Actor,
@@ -74,7 +76,7 @@ public sealed class PolicyEngine(IAuditWriter auditWriter, PolicyRules rules)
         return decision;
     }
 
-    private PolicyDecision Evaluate(PolicyRequest request)
+    private async Task<PolicyDecision> Evaluate(PolicyRequest request, CancellationToken ct)
     {
         var envelope = request.Envelope;
 
@@ -109,14 +111,24 @@ public sealed class PolicyEngine(IAuditWriter auditWriter, PolicyRules rules)
                 "automatic writes to production are out of scope and can never be approved.");
         }
 
-        // 4. The envelope itself must cover the action against the resource.
+        // 4. Integration disabled - check if the target integration is disabled.
+        if (request.Resource is ResourceScope.P1Resource p1Resource)
+        {
+            var disabled = await operations.IsIntegrationDisabledAsync(p1Resource.Environment, ct);
+            if (disabled)
+            {
+                return PolicyDecision.Deny($"Integration '{p1Resource.Environment}' is disabled by administrator.");
+            }
+        }
+
+        // 5. The envelope itself must cover the action against the resource.
         if (!envelope.Covers(request.Action, request.Resource, request.Now))
         {
             return PolicyDecision.Deny(
                 $"Authorization envelope does not cover {request.Action} for the requested resource.");
         }
 
-        // 5. Some actions always require a human even when the envelope covers
+        // 6. Some actions always require a human even when the envelope covers
         // them - see the type remarks for why this compensates for the envelope's
         // lack of a write axis on four action kinds.
         if (rules.AlwaysRequiresApproval.Contains(request.Action))
@@ -126,7 +138,7 @@ public sealed class PolicyEngine(IAuditWriter auditWriter, PolicyRules rules)
                 request.Action.ToString());
         }
 
-        // 6. Otherwise, permitted.
+        // 7. Otherwise, permitted.
         return PolicyDecision.Permit(
             "Action is within the authorization envelope and does not require approval.");
     }

@@ -2,12 +2,14 @@ using System.Text.Json;
 using Orchestrator.Application.Gateway;
 using Orchestrator.Application.Humans;
 using Orchestrator.Application.Identity;
+using Orchestrator.Application.Operations;
 using Orchestrator.Application.Policy;
 using Orchestrator.Application.Ports;
 using Orchestrator.Domain.Authorization;
 using Orchestrator.Domain.Budgets;
 using Orchestrator.Domain.Humans;
 using Orchestrator.Domain.Identity;
+using Orchestrator.Domain.Operations;
 using Orchestrator.Domain.Tasks;
 using Shouldly;
 
@@ -55,7 +57,7 @@ public class HumanQuestionServiceTests
         People.AddAsync(Magnus, default).GetAwaiter().GetResult();
 
         var gateway = new ToolGateway(
-            new PolicyEngine(new RecordingAuditWriter(), PolicyRules.Default),
+            new PolicyEngine(new RecordingAuditWriter(), PolicyRules.Default, new NoOpOperationalControls()),
             new InMemoryToolCallStore(),
             new RecordingAuditWriter(),
             Clock);
@@ -398,6 +400,7 @@ public class HumanQuestionServiceTests
                 Guid.CreateVersion7(),
                 call.TaskId,
                 call.StepId,
+                call.Action,
                 call.OperationId,
                 call.IdempotencyKey,
                 ToolCallOutcome.Unknown,
@@ -411,19 +414,47 @@ public class HumanQuestionServiceTests
 
         public Task RecordSuccessAsync<TResult>(Guid recordId, TResult? value, DateTimeOffset now, CancellationToken ct)
         {
-            var index = _records.FindIndex(r => r.Id == recordId);
-            var existing = _records[index];
+            var existing = _records.Single(r => r.Id == recordId);
             var json = value is null ? null : JsonSerializer.Serialize(value);
-            _records[index] = existing with
-            {
-                Outcome = ToolCallOutcome.Succeeded,
-                ResultJson = json,
-                CompletedAt = now,
-            };
+            existing.Complete(ToolCallOutcome.Succeeded, json, now);
             return Task.CompletedTask;
         }
 
         public TResult? Deserialize<TResult>(ToolCallRecord record) =>
             record.ResultJson is null ? default : JsonSerializer.Deserialize<TResult>(record.ResultJson);
+
+        public Task<bool> HasUnknownOutcomesAsync(Guid taskId, CancellationToken ct)
+        {
+            return Task.FromResult(_records.Any(r => r.TaskId == taskId && r.Outcome == ToolCallOutcome.Unknown));
+        }
+
+        public Task<IReadOnlyList<ToolCallRecord>> FindUnknownAsync(Guid taskId, CancellationToken ct)
+        {
+            IReadOnlyList<ToolCallRecord> unknown =
+                _records.Where(r => r.TaskId == taskId && r.Outcome == ToolCallOutcome.Unknown).ToList();
+            return Task.FromResult(unknown);
+        }
+
+        public Task ResolveAsync(Guid recordId, ToolCallOutcome outcome, DateTimeOffset now, CancellationToken ct)
+        {
+            var record = _records.SingleOrDefault(r => r.Id == recordId);
+            record?.Complete(outcome, record.ResultJson, now);
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class NoOpOperationalControls : IOperationalControls
+    {
+        public Task PauseIntakeAsync(string actor, CancellationToken ct) => Task.CompletedTask;
+        public Task ResumeIntakeAsync(string actor, CancellationToken ct) => Task.CompletedTask;
+        public Task<bool> IsIntakePausedAsync(CancellationToken ct) => Task.FromResult(false);
+        public Task DisableIntegrationAsync(string name, string actor, CancellationToken ct) => Task.CompletedTask;
+        public Task EnableIntegrationAsync(string name, string actor, CancellationToken ct) => Task.CompletedTask;
+        public Task<bool> IsIntegrationDisabledAsync(string name, CancellationToken ct) => Task.FromResult(false);
+        public Task<bool> CancelTaskAsync(Guid taskId, string actor, CancellationToken ct) => Task.FromResult(false);
+        public Task RevokeAuthorizationAsync(Guid taskId, string actor, CancellationToken ct) => Task.CompletedTask;
+        public Task RetryStepAsync(Guid taskId, Guid stepId, string actor, CancellationToken ct) => Task.CompletedTask;
+        public Task<ReconciliationSummary> ReconcileTaskAsync(Guid taskId, string actor, CancellationToken ct) =>
+            Task.FromResult(new ReconciliationSummary(0, 0, 0, []));
     }
 }

@@ -1,6 +1,7 @@
 using Orchestrator.Application.Policy;
 using Orchestrator.Application.Ports;
 using Orchestrator.Domain.Authorization;
+using Orchestrator.Domain.Operations;
 
 namespace Orchestrator.Application.Gateway;
 

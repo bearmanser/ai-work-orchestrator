@@ -259,3 +259,74 @@ export interface AssertRelationshipRequest {
   relationshipType: string;
   note?: string | null;
 }
+
+// The types below mirror Orchestrator.Api.Endpoints.IntegrationEndpoints, PolicyEndpoints
+// and DirectoryEndpoints (src/Orchestrator.Api/Endpoints/*.cs). Keep names and shapes
+// identical to the C# records and update this file whenever an endpoint's DTOs change.
+
+/**
+ * GET /api/admin/integrations — mirrors IntegrationStatus. Never carries a secret value,
+ * only a fingerprint (the first 8 hex characters of SHA256(value)).
+ */
+export interface IntegrationStatus {
+  name: string;
+  configured: boolean;
+  secretFingerprint: string;
+  lastCheckedAt: string | null;
+  health: string;
+  detail: string | null;
+}
+
+/** PUT /api/admin/integrations/{name} body — mirrors SetIntegrationSecretRequest. A reference to a secret, never a value. */
+export interface SetIntegrationSecretRequest {
+  secretRef: string;
+}
+
+/** GET/PUT /api/admin/policy — mirrors PolicyRulesDto. */
+export interface PolicyRulesDto {
+  alwaysRequiresApproval: string[];
+  forbiddenEnvironments: string[];
+}
+
+/** PUT /api/admin/policy body — mirrors UpdatePolicyRulesRequest. Either field left out keeps that part of the current rules unchanged. */
+export interface UpdatePolicyRulesRequest {
+  alwaysRequiresApproval?: string[];
+  forbiddenEnvironments?: string[];
+}
+
+/** Mirrors DirectoryEndpoints.PersonDto. */
+export interface PersonDto {
+  id: string;
+  displayName: string;
+  slackUserId: string | null;
+  azureDevOpsId: string | null;
+  email: string | null;
+  isActive: boolean;
+}
+
+/** POST /api/admin/people body — mirrors DirectoryEndpoints.CreatePersonRequest. */
+export interface CreatePersonRequest {
+  displayName: string;
+  slackUserId?: string | null;
+  azureDevOpsId?: string | null;
+  email?: string | null;
+}
+
+/** Mirrors DirectoryEndpoints.OwnershipDto. */
+export interface OwnershipDto {
+  id: string;
+  subject: string;
+  subjectKey: string;
+  ownerPersonId: string;
+  canConfirmPlans: boolean;
+  canApproveRestrictedActions: boolean;
+}
+
+/** POST /api/admin/ownership body — mirrors DirectoryEndpoints.CreateOwnershipRequest. */
+export interface CreateOwnershipRequest {
+  subject: string;
+  subjectKey: string;
+  ownerPersonId: string;
+  canConfirmPlans: boolean;
+  canApproveRestrictedActions: boolean;
+}

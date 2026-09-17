@@ -25,6 +25,7 @@ using Orchestrator.Application.Evidence;
 using Orchestrator.Application.Gateway;
 using Orchestrator.Application.Humans;
 using Orchestrator.Application.Identity;
+using Orchestrator.Application.Integrations;
 using Orchestrator.Application.Meetings;
 using Orchestrator.Application.Memory;
 using Orchestrator.Application.Operations;
@@ -39,10 +40,12 @@ using Orchestrator.Infrastructure.Artifacts;
 using Orchestrator.Infrastructure.Audit;
 using Orchestrator.Infrastructure.Identity;
 using Orchestrator.Infrastructure.Inbox;
+using Orchestrator.Infrastructure.Integrations;
 using Orchestrator.Infrastructure.Jobs;
 using Orchestrator.Infrastructure.Operations;
 using Orchestrator.Infrastructure.Outbox;
 using Orchestrator.Infrastructure.Persistence;
+using Orchestrator.Infrastructure.Policy;
 using Orchestrator.Infrastructure.Secrets;
 using Orchestrator.Infrastructure.Telemetry;
 
@@ -93,10 +96,23 @@ builder.Services.AddScoped<OutboxDispatcher>(sp => new OutboxDispatcher(
 builder.Services.AddScoped<IAuditWriter, AuditWriter>();
 builder.Services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
 builder.Services.AddSingleton(PolicyRules.Default);
-builder.Services.AddScoped<PolicyEngine>(sp => new PolicyEngine(
-    sp.GetRequiredService<IAuditWriter>(),
-    PolicyRules.Default,
-    sp.GetRequiredService<IOperationalControls>()));
+builder.Services.AddScoped<IPolicyRulesStore, EfPolicyRulesStore>();
+builder.Services.AddScoped<PolicyEngine>(sp =>
+{
+    // PolicyEngine's constructor takes PolicyRules by value rather than the store, so
+    // unit tests can build one against an in-memory PolicyRules without a database.
+    // At the composition root, resolve the admin-persisted rules synchronously once
+    // per request scope - a single cheap single-row read - so a policy change made
+    // through PUT /api/admin/policy takes effect on the next request rather than
+    // requiring a restart.
+    var rulesStore = sp.GetRequiredService<IPolicyRulesStore>();
+    var rules = rulesStore.GetAsync(CancellationToken.None).GetAwaiter().GetResult();
+    return new PolicyEngine(
+        sp.GetRequiredService<IAuditWriter>(),
+        rules,
+        sp.GetRequiredService<IOperationalControls>());
+});
+builder.Services.AddScoped<IIntegrationSettingsStore, EfIntegrationSettingsStore>();
 // EF-backed so an Unknown outcome - and the retry gate it enforces - survives a
 // process restart; InMemoryToolCallStore remains for tests that want no database.
 builder.Services.AddScoped<IToolCallStore, EfToolCallStore>();
@@ -313,6 +329,8 @@ AzureDevOpsWebhookEndpoint.Map(app);
 SlackWebhookEndpoint.Map(app);
 SlackInteractiveEndpoint.Map(app);
 TaskQueryEndpoints.Map(app);
+IntegrationEndpoints.Map(app);
+PolicyEndpoints.Map(app);
 app.UseHangfireDashboard("/hangfire", new DashboardOptions
 {
     Authorization = [new AdminOnlyDashboardFilter()],

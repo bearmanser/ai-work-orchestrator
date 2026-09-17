@@ -6,6 +6,9 @@ import { RequireSession } from "./features/auth/RequireSession";
 import { useSession } from "./features/auth/useSession";
 import { RepositoryDetailPage } from "./features/repositories/RepositoryDetailPage";
 import { RepositoryListPage } from "./features/repositories/RepositoryListPage";
+import { IntegrationsPage } from "./features/settings/IntegrationsPage";
+import { PeoplePage } from "./features/settings/PeoplePage";
+import { PolicyPage } from "./features/settings/PolicyPage";
 import { TaskDetailPage } from "./features/tasks/TaskDetailPage";
 import { TaskListPage } from "./features/tasks/TaskListPage";
 
@@ -41,6 +44,15 @@ function HomePage() {
       </p>
       <p>
         <Link to="/repositories">View repositories</Link>
+      </p>
+      <p>
+        <Link to="/settings/integrations">Integrations</Link>
+      </p>
+      <p>
+        <Link to="/settings/people">People and ownership</Link>
+      </p>
+      <p>
+        <Link to="/settings/policy">Policy</Link>
       </p>
       <button type="button" onClick={handleLogout}>
         Sign out
@@ -78,6 +90,9 @@ export function App() {
             <Route path="/tasks/:taskId" element={<TaskDetailRoute />} />
             <Route path="/repositories" element={<RepositoryListPage />} />
             <Route path="/repositories/:repositoryId" element={<RepositoryDetailRoute />} />
+            <Route path="/settings/integrations" element={<IntegrationsPage />} />
+            <Route path="/settings/people" element={<PeoplePage />} />
+            <Route path="/settings/policy" element={<PolicyPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

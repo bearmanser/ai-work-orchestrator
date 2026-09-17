@@ -431,6 +431,41 @@ namespace Orchestrator.Infrastructure.Persistence.Migrations
                     b.ToTable("admin_accounts", "orchestrator");
                 });
 
+            modelBuilder.Entity("Orchestrator.Domain.Integrations.IntegrationSetting", b =>
+                {
+                    b.Property<string>("Name")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Detail")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("detail");
+
+                    b.Property<string>("Health")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("health");
+
+                    b.Property<DateTimeOffset?>("LastCheckedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_checked_at");
+
+                    b.Property<string>("SecretRef")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("secret_ref");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Name");
+
+                    b.ToTable("integration_settings", "orchestrator");
+                });
+
             modelBuilder.Entity("Orchestrator.Domain.Memory.MemoryProposal", b =>
                 {
                     b.Property<Guid>("Id")
@@ -717,6 +752,33 @@ namespace Orchestrator.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("plan_revisions", "orchestrator");
+                });
+
+            modelBuilder.Entity("Orchestrator.Domain.Policy.PolicyConfigurationRow", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AlwaysRequiresApprovalCsv")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("always_requires_approval_csv");
+
+                    b.Property<string>("ForbiddenEnvironmentsCsv")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("forbidden_environments_csv");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("policy_configuration", "orchestrator");
                 });
 
             modelBuilder.Entity("Orchestrator.Domain.PullRequests.PullRequestTracking", b =>

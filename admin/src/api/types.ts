@@ -164,3 +164,98 @@ export interface TaskListQuery {
   page?: number;
   pageSize?: number;
 }
+
+// The types below mirror Orchestrator.Api.Endpoints.RepositoryEndpoints and
+// RelationshipEndpoints (src/Orchestrator.Api/Endpoints/RepositoryEndpoints.cs,
+// RelationshipEndpoints.cs). Keep names and shapes identical to the C# records
+// and update this file whenever those endpoints' DTOs change.
+
+/** Mirrors Orchestrator.Domain.Repositories.BuildCommands. TimeSpan serializes as "hh:mm:ss". */
+export interface BuildCommands {
+  restore: string | null;
+  build: string | null;
+  test: string | null;
+  lint: string | null;
+  workingDirectory: string;
+  timeout: string;
+}
+
+/** GET /api/admin/repositories, GET/PUT /api/admin/repositories/{id} — mirrors RepositoryProfileDto. */
+export interface RepositoryProfile {
+  id: string;
+  name: string;
+  remoteUrl: string;
+  defaultBranch: string;
+  purpose: string;
+  ownerContactId: string;
+  accessPolicy: string;
+  buildCommands: BuildCommands;
+  instructionFilePaths: string[];
+  lastInspectedCommit: string | null;
+  lastInspectedAt: string | null;
+  version: number;
+}
+
+/** POST /api/admin/repositories body — mirrors RepositoryCatalogService.CreateRepositoryRequest. */
+export interface CreateRepositoryRequest {
+  name: string;
+  remoteUrl: string;
+  defaultBranch: string;
+  purpose: string;
+  ownerContactId: string;
+  accessPolicy: string;
+  buildCommands: BuildCommands;
+  instructionFilePaths: string[];
+}
+
+/**
+ * PUT /api/admin/repositories/{id} body — mirrors
+ * RepositoryCatalogService.UpdateRepositoryRequest. Note accessPolicy is not
+ * settable through update; it is create-only in the backend contract.
+ */
+export interface UpdateRepositoryRequest {
+  name: string;
+  purpose: string;
+  defaultBranch: string;
+  ownerContactId: string;
+  buildCommands: BuildCommands | null;
+  instructionFilePaths: string[];
+}
+
+/**
+ * Orchestrator.Domain.Repositories.RelationshipStatus. Unlike TaskState, the
+ * relationship DTOs serialize this as its string name (`r.Status.ToString()`
+ * in RelationshipDto.From), not a numeric ordinal.
+ */
+export type RelationshipStatus = "Evidenced" | "AdminAsserted" | "Conflicted";
+
+/** Mirrors Orchestrator.Domain.Repositories.RelationshipEvidence. */
+export interface RelationshipEvidence {
+  sourcePath: string;
+  commitSha: string;
+  excerpt: string;
+}
+
+/**
+ * GET /api/admin/repositories/{id}/relationships — mirrors RelationshipDto.
+ * Note the real route is nested under the source repository, not a flat
+ * /api/admin/relationships list endpoint.
+ */
+export interface RepositoryRelationship {
+  id: string;
+  sourceRepositoryId: string;
+  targetRepositoryId: string;
+  relationshipType: string;
+  status: RelationshipStatus;
+  evidence: RelationshipEvidence[];
+  lastVerifiedAt: string;
+  lastVerifiedCommit: string | null;
+  adminNote: string | null;
+}
+
+/** POST /api/admin/repositories/{id}/relationships body — mirrors AssertRelationshipRequest. */
+export interface AssertRelationshipRequest {
+  targetRepositoryId: string;
+  relationshipType: string;
+  note?: string | null;
+}

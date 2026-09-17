@@ -156,6 +156,7 @@ public class ToolGatewayTests
                 Guid.CreateVersion7(),
                 call.TaskId,
                 call.StepId,
+                call.Action,
                 call.OperationId,
                 call.IdempotencyKey,
                 ToolCallOutcome.Unknown,
@@ -186,12 +187,18 @@ public class ToolGatewayTests
             return Task.FromResult(Records.Any(r => r.TaskId == taskId && r.Outcome == ToolCallOutcome.Unknown));
         }
 
-        public Task<int> ReconcileUnknownAsync(Guid taskId, DateTimeOffset now, CancellationToken ct)
+        public Task<IReadOnlyList<ToolCallRecord>> FindUnknownAsync(Guid taskId, CancellationToken ct)
         {
-            var unknown = Records.Where(r => r.TaskId == taskId && r.Outcome == ToolCallOutcome.Unknown).ToList();
-            foreach (var record in unknown)
-                record.Complete(ToolCallOutcome.Succeeded, record.ResultJson, now);
-            return Task.FromResult(unknown.Count);
+            IReadOnlyList<ToolCallRecord> unknown =
+                Records.Where(r => r.TaskId == taskId && r.Outcome == ToolCallOutcome.Unknown).ToList();
+            return Task.FromResult(unknown);
+        }
+
+        public Task ResolveAsync(Guid recordId, ToolCallOutcome outcome, DateTimeOffset now, CancellationToken ct)
+        {
+            var record = Records.SingleOrDefault(r => r.Id == recordId);
+            record?.Complete(outcome, record.ResultJson, now);
+            return Task.CompletedTask;
         }
     }
 
@@ -217,6 +224,7 @@ public class ToolGatewayTests
         public Task<bool> CancelTaskAsync(Guid taskId, string actor, CancellationToken ct) => Task.FromResult(false);
         public Task RevokeAuthorizationAsync(Guid taskId, string actor, CancellationToken ct) => Task.CompletedTask;
         public Task RetryStepAsync(Guid taskId, Guid stepId, string actor, CancellationToken ct) => Task.CompletedTask;
-        public Task ReconcileTaskAsync(Guid taskId, string actor, CancellationToken ct) => Task.CompletedTask;
+        public Task<ReconciliationSummary> ReconcileTaskAsync(Guid taskId, string actor, CancellationToken ct) =>
+            Task.FromResult(new ReconciliationSummary(0, 0, 0, []));
     }
 }

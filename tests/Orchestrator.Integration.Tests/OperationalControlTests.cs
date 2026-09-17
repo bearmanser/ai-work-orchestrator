@@ -21,6 +21,7 @@ using Orchestrator.Domain.Repositories;
 using Orchestrator.Domain.Steps;
 using Orchestrator.Domain.Tasks;
 using Orchestrator.Infrastructure.Audit;
+using Orchestrator.Infrastructure.Operations;
 using Orchestrator.Infrastructure.Outbox;
 using Orchestrator.Infrastructure.Persistence;
 using Shouldly;
@@ -136,21 +137,51 @@ public sealed class OperationalControlTests(PostgresFixture fixture, Orchestrato
     [Fact]
     public async Task RetryStep_WithAnUnknownToolCallOutcome_IsRefusedUntilReconciled()
     {
+        // No IOperationReconciler is registered in production for any target yet
+        // (none of the real adapters implement one), so "reconcile" here can only
+        // honestly report that it could not resolve the operation - the record
+        // stays Unknown and retry stays refused. This is the path that matters:
+        // reconciliation must never assume an outcome just because nobody
+        // registered a way to check it. The Succeeded/Failed paths (a registered
+        // reconciler actually resolving a record) are covered at the unit level in
+        // OperationReconciliationServiceTests, where a fake reconciler can be
+        // registered without reaching into this shared API host's DI container.
         await ResetAsync();
         var client = await AuthenticatedClientAsync();
 
         var (taskId, stepId) = await SeedStepWithUnknownOutcomeAsync();
 
-        // Retry should be refused (Conflict) due to unknown tool call outcome
         var refused = await PostWithCsrfAsync(client, $"/api/admin/tasks/{taskId}/steps/{stepId}/retry", null);
         refused.StatusCode.ShouldBe(HttpStatusCode.Conflict);
 
-        // Reconcile the task
-        await PostWithCsrfAsync(client, $"/api/admin/tasks/{taskId}/reconcile", null);
+        var reconcileResponse = await PostWithCsrfAsync(client, $"/api/admin/tasks/{taskId}/reconcile", null);
+        reconcileResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var body = await reconcileResponse.Content.ReadAsStringAsync();
+        body.ShouldContain("\"stillUnknown\":1", Case.Insensitive);
+        body.ShouldContain("RepositoryWrite", Case.Insensitive);
 
-        // Retry should now be accepted
-        var retried = await PostWithCsrfAsync(client, $"/api/admin/tasks/{taskId}/steps/{stepId}/retry", null);
-        retried.StatusCode.ShouldBe(HttpStatusCode.Accepted);
+        var stillRefused = await PostWithCsrfAsync(client, $"/api/admin/tasks/{taskId}/steps/{stepId}/retry", null);
+        stillRefused.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+    }
+
+    [Fact]
+    public async Task EfToolCallStore_UnknownRecordWrittenByOneDbContext_IsStillUnknownAndBlocksRetryThroughAFreshOne()
+    {
+        // Proves the retry gate survives a restart: InMemoryToolCallStore would lose
+        // this record the moment the process (or, here, the DbContext) recycles.
+        await ResetAsync();
+        var client = await AuthenticatedClientAsync();
+
+        var (taskId, stepId) = await SeedStepWithUnknownOutcomeAsync();
+
+        // A brand-new EfToolCallStore over a brand-new DbContext - not the one the
+        // seed helper used - must still see the record as Unknown.
+        await using var freshDb = fixture.NewDbContext();
+        var freshStore = new EfToolCallStore(freshDb);
+        (await freshStore.HasUnknownOutcomesAsync(taskId, CancellationToken.None)).ShouldBeTrue();
+
+        var refused = await PostWithCsrfAsync(client, $"/api/admin/tasks/{taskId}/steps/{stepId}/retry", null);
+        refused.StatusCode.ShouldBe(HttpStatusCode.Conflict);
     }
 
     [Fact]
@@ -448,8 +479,10 @@ public sealed class OperationalControlTests(PostgresFixture fixture, Orchestrato
 
         await db.SaveChangesAsync();
 
-        // Create a tool call record with Unknown outcome using the in-memory store
-        var store = factory.Services.GetRequiredService<IToolCallStore>();
+        // Create a tool call record with Unknown outcome using the real (EF-backed,
+        // scoped) store.
+        using var storeScope = factory.Services.CreateScope();
+        var store = storeScope.ServiceProvider.GetRequiredService<IToolCallStore>();
         var call = new ToolCall(
             task.Id, step.Id, "magnus", ActionKind.RepositoryWrite,
             new ResourceScope.RepositoryResource(Guid.NewGuid(), "main"),

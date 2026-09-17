@@ -227,7 +227,8 @@ public sealed class TaskIntakeServiceTests
 
         public Task RetryStepAsync(Guid taskId, Guid stepId, string actor, CancellationToken ct) => Task.CompletedTask;
 
-        public Task ReconcileTaskAsync(Guid taskId, string actor, CancellationToken ct) => Task.CompletedTask;
+        public Task<ReconciliationSummary> ReconcileTaskAsync(Guid taskId, string actor, CancellationToken ct) =>
+            Task.FromResult(new ReconciliationSummary(0, 0, 0, []));
     }
 
     private sealed class RecordingAuditWriter : IAuditWriter

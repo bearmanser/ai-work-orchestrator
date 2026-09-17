@@ -317,7 +317,8 @@ public sealed class MeetingAssignmentServiceTests
 
         public Task RetryStepAsync(Guid taskId, Guid stepId, string actor, CancellationToken ct) => throw new NotSupportedException();
 
-        public Task ReconcileTaskAsync(Guid taskId, string actor, CancellationToken ct) => throw new NotSupportedException();
+        public Task<ReconciliationSummary> ReconcileTaskAsync(Guid taskId, string actor, CancellationToken ct) =>
+            throw new NotSupportedException();
     }
 
     private sealed class RecordingAuditWriter : IAuditWriter

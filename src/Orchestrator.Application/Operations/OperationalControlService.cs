@@ -58,7 +58,7 @@ public sealed class OperationalControlService(
         await controls.RetryStepAsync(taskId, stepId, actor, ct);
     }
 
-    public async Task ReconcileTaskAsync(Guid taskId, string actor, CancellationToken ct) =>
+    public async Task<ReconciliationSummary> ReconcileTaskAsync(Guid taskId, string actor, CancellationToken ct) =>
         await controls.ReconcileTaskAsync(taskId, actor, ct);
 
     private async Task NotifyOpenPullRequestRemainsAsync(Guid taskId, CancellationToken ct)

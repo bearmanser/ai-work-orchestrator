@@ -131,7 +131,7 @@ public static class TaskOperationsEndpoints
         }
     }
 
-    private static async Task<Results<NoContent, NotFound, BadRequest<string>>> ReconcileTask(
+    private static async Task<Results<Ok<ReconcileResponse>, NotFound, BadRequest<string>>> ReconcileTask(
         Guid taskId, ClaimsPrincipal user,
         OperationalControlService service,
         CancellationToken ct)
@@ -139,8 +139,16 @@ public static class TaskOperationsEndpoints
         var actor = user.Identity?.Name ?? "unknown";
         try
         {
-            await service.ReconcileTaskAsync(taskId, actor, ct);
-            return TypedResults.NoContent();
+            var summary = await service.ReconcileTaskAsync(taskId, actor, ct);
+            return TypedResults.Ok(new ReconcileResponse(
+                summary.Resolved,
+                summary.Failed,
+                summary.StillUnknown,
+                summary.UnresolvedTargets.Select(t => t.ToString()).ToArray(),
+                summary.FullyReconciled
+                    ? $"Reconciled {summary.Resolved} succeeded and {summary.Failed} failed operation(s)."
+                    : $"Could not reconcile {summary.StillUnknown} operation(s) - no reconciler registered for: " +
+                      $"{string.Join(", ", summary.UnresolvedTargets)}."));
         }
         catch (KeyNotFoundException)
         {
@@ -148,3 +156,12 @@ public static class TaskOperationsEndpoints
         }
     }
 }
+
+/// <summary>
+/// Distinguishes "checked and it was fine" (<see cref="Resolved"/>/<see cref="Failed"/>)
+/// from "nobody checked" (<see cref="StillUnknown"/> greater than zero,
+/// <see cref="UnresolvedTargets"/> naming why) - an operator reading this response
+/// must be able to tell the two apart.
+/// </summary>
+public sealed record ReconcileResponse(
+    int Resolved, int Failed, int StillUnknown, IReadOnlyList<string> UnresolvedTargets, string Message);

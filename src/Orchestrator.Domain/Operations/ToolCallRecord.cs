@@ -17,6 +17,7 @@ public sealed record ToolCallRecord
         Guid id,
         Guid taskId,
         Guid stepId,
+        ActionKind action,
         string operationId,
         string idempotencyKey,
         ToolCallOutcome outcome,
@@ -28,6 +29,7 @@ public sealed record ToolCallRecord
         Id = id;
         TaskId = taskId;
         StepId = stepId;
+        Action = action;
         OperationId = operationId;
         IdempotencyKey = idempotencyKey;
         Outcome = outcome;
@@ -40,6 +42,13 @@ public sealed record ToolCallRecord
     public Guid Id { get; init; }
     public Guid TaskId { get; init; }
     public Guid StepId { get; init; }
+
+    /// <summary>
+    /// The category of remote operation this call was - the "target" a
+    /// reconciler is registered against to check whether it actually happened.
+    /// </summary>
+    public ActionKind Action { get; init; }
+
     public string OperationId { get; init; }
     public string IdempotencyKey { get; init; }
     public ToolCallOutcome Outcome { get; private set; }

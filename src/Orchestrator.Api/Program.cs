@@ -82,7 +82,10 @@ builder.Services.AddScoped<PolicyEngine>(sp => new PolicyEngine(
     sp.GetRequiredService<IAuditWriter>(),
     PolicyRules.Default,
     sp.GetRequiredService<IOperationalControls>()));
-builder.Services.AddSingleton<IToolCallStore, InMemoryToolCallStore>();
+// EF-backed so an Unknown outcome - and the retry gate it enforces - survives a
+// process restart; InMemoryToolCallStore remains for tests that want no database.
+builder.Services.AddScoped<IToolCallStore, EfToolCallStore>();
+builder.Services.AddScoped<OperationReconciliationService>();
 builder.Services.AddScoped<IToolGateway, ToolGateway>();
 builder.Services.AddScoped<IRepositoryProfileStore, EfRepositoryProfileStore>();
 builder.Services.AddScoped<RepositoryCatalogService>();

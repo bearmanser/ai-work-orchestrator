@@ -19,12 +19,18 @@ public interface IToolCallStore
     Task<bool> HasUnknownOutcomesAsync(Guid taskId, CancellationToken ct);
 
     /// <summary>
-    /// Resolves every <see cref="ToolCallOutcome.Unknown"/> outcome recorded for
-    /// <paramref name="taskId"/> and returns how many records were reconciled. This is
-    /// the single place the retry gate's data actually changes; callers must not mark
-    /// a task reconciled without going through here.
+    /// Every record for <paramref name="taskId"/> still at
+    /// <see cref="ToolCallOutcome.Unknown"/>, for reconciliation to inspect. Never
+    /// guesses at an outcome itself - that is <see cref="IOperationReconciler"/>'s job.
     /// </summary>
-    Task<int> ReconcileUnknownAsync(Guid taskId, DateTimeOffset now, CancellationToken ct);
+    Task<IReadOnlyList<ToolCallRecord>> FindUnknownAsync(Guid taskId, CancellationToken ct);
+
+    /// <summary>
+    /// Persists a reconciler's resolution of one previously-<see cref="ToolCallOutcome.Unknown"/>
+    /// record. <paramref name="outcome"/> must not be <see cref="ToolCallOutcome.Unknown"/> -
+    /// there is nothing to persist when nothing was resolved.
+    /// </summary>
+    Task ResolveAsync(Guid recordId, ToolCallOutcome outcome, DateTimeOffset now, CancellationToken ct);
 }
 
 /// <summary>

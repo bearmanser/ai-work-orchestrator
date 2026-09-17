@@ -15,6 +15,7 @@ public sealed class ToolCallRecordConfiguration : IEntityTypeConfiguration<ToolC
         b.Property(r => r.Id).ValueGeneratedNever();
         b.Property(r => r.TaskId).IsRequired();
         b.Property(r => r.StepId).IsRequired();
+        b.Property(r => r.Action).HasConversion<string>().HasMaxLength(50).IsRequired();
         b.Property(r => r.OperationId).HasMaxLength(200).IsRequired();
         b.Property(r => r.IdempotencyKey).HasMaxLength(200).IsRequired();
         b.Property(r => r.Outcome).IsRequired();

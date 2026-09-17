@@ -31,6 +31,7 @@ public sealed class InMemoryToolCallStore : IToolCallStore
                 Guid.CreateVersion7(),
                 call.TaskId,
                 call.StepId,
+                call.Action,
                 call.OperationId,
                 call.IdempotencyKey,
                 ToolCallOutcome.Unknown,
@@ -69,18 +70,24 @@ public sealed class InMemoryToolCallStore : IToolCallStore
         }
     }
 
-    public Task<int> ReconcileUnknownAsync(Guid taskId, DateTimeOffset now, CancellationToken ct)
+    public Task<IReadOnlyList<ToolCallRecord>> FindUnknownAsync(Guid taskId, CancellationToken ct)
     {
         lock (_gate)
         {
-            var unknown = _records.Values
+            IReadOnlyList<ToolCallRecord> unknown = _records.Values
                 .Where(r => r.TaskId == taskId && r.Outcome == ToolCallOutcome.Unknown)
                 .ToList();
+            return Task.FromResult(unknown);
+        }
+    }
 
-            foreach (var record in unknown)
-                record.Complete(ToolCallOutcome.Succeeded, record.ResultJson, now);
-
-            return Task.FromResult(unknown.Count);
+    public Task ResolveAsync(Guid recordId, ToolCallOutcome outcome, DateTimeOffset now, CancellationToken ct)
+    {
+        lock (_gate)
+        {
+            var record = _records.Values.FirstOrDefault(r => r.Id == recordId);
+            record?.Complete(outcome, record.ResultJson, now);
+            return Task.CompletedTask;
         }
     }
 }

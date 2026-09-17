@@ -20,5 +20,12 @@ public interface IOperationalControls
     Task<bool> CancelTaskAsync(Guid taskId, string actor, CancellationToken ct);
     Task RevokeAuthorizationAsync(Guid taskId, string actor, CancellationToken ct);
     Task RetryStepAsync(Guid taskId, Guid stepId, string actor, CancellationToken ct);
-    Task ReconcileTaskAsync(Guid taskId, string actor, CancellationToken ct);
+
+    /// <summary>
+    /// Resolves the task's Unknown tool-call outcomes against remote state and
+    /// returns a summary distinguishing records actually resolved from records left
+    /// Unknown because no reconciler exists for their target - an operator must be
+    /// able to tell "checked and it was fine" apart from "nobody checked".
+    /// </summary>
+    Task<ReconciliationSummary> ReconcileTaskAsync(Guid taskId, string actor, CancellationToken ct);
 }

@@ -17,7 +17,11 @@ namespace Orchestrator.Infrastructure.Operations;
 /// data can disagree with itself.
 /// </summary>
 public sealed class EfOperationalControls(
-    OrchestratorDbContext db, IAuditWriter audit, IToolCallStore toolCallStore, TimeProvider clock)
+    OrchestratorDbContext db,
+    IAuditWriter audit,
+    IToolCallStore toolCallStore,
+    OperationReconciliationService reconciliation,
+    TimeProvider clock)
     : IOperationalControls
 {
     private const string IntakePausedKey = "intake.paused";
@@ -140,22 +144,33 @@ public sealed class EfOperationalControls(
             }), ct);
     }
 
-    public async Task ReconcileTaskAsync(Guid taskId, string actor, CancellationToken ct)
+    public async Task<ReconciliationSummary> ReconcileTaskAsync(Guid taskId, string actor, CancellationToken ct)
     {
-        var reconciledCount = await toolCallStore.ReconcileUnknownAsync(taskId, clock.GetUtcNow(), ct);
+        var summary = await reconciliation.ReconcileAsync(taskId, ct);
+
+        var reason = summary.FullyReconciled
+            ? $"Reconciled {summary.Resolved} succeeded and {summary.Failed} failed " +
+              $"tool call outcome(s) for task {taskId}."
+            : $"Reconciled {summary.Resolved} succeeded and {summary.Failed} failed, but could not reconcile " +
+              $"{summary.StillUnknown} operation(s) for task {taskId} - no reconciler registered for: " +
+              $"{string.Join(", ", summary.UnresolvedTargets)}.";
 
         await audit.RecordAsync(new AuditEntry(
             Actor: actor,
             TaskId: taskId,
             Action: "operations.task.reconcile",
-            Reason: $"Reconciled {reconciledCount} unknown tool call outcome(s) for task {taskId}.",
-            Outcome: "Success",
+            Reason: reason,
+            Outcome: summary.FullyReconciled ? "Success" : "Partial",
             CorrelationId: Guid.CreateVersion7().ToString(),
             Details: new Dictionary<string, string>
             {
                 ["taskId"] = taskId.ToString(),
-                ["reconciledCount"] = reconciledCount.ToString(),
+                ["resolved"] = summary.Resolved.ToString(),
+                ["failed"] = summary.Failed.ToString(),
+                ["stillUnknown"] = summary.StillUnknown.ToString(),
             }), ct);
+
+        return summary;
     }
 
     private async Task SetAsync(

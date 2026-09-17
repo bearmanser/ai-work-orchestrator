@@ -171,6 +171,7 @@ public class PolicyEngineTests
         public Task<bool> CancelTaskAsync(Guid taskId, string actor, CancellationToken ct) => Task.FromResult(false);
         public Task RevokeAuthorizationAsync(Guid taskId, string actor, CancellationToken ct) => Task.CompletedTask;
         public Task RetryStepAsync(Guid taskId, Guid stepId, string actor, CancellationToken ct) => Task.CompletedTask;
-        public Task ReconcileTaskAsync(Guid taskId, string actor, CancellationToken ct) => Task.CompletedTask;
+        public Task<ReconciliationSummary> ReconcileTaskAsync(Guid taskId, string actor, CancellationToken ct) =>
+            Task.FromResult(new ReconciliationSummary(0, 0, 0, []));
     }
 }

@@ -64,7 +64,10 @@ async function request<T>(
   if (response.status === 401) {
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent(unauthorizedEvent));
-      window.location.assign("/login");
+      // No hard navigation here: the anonymous session check itself 401s
+      // (including on /login), so navigating would reload into an infinite
+      // loop. Expired sessions bounce to /login through the router instead
+      // (see RequireSession reacting to the event above via useSession).
     }
     throw new ApiError(401, "Unauthorized");
   }

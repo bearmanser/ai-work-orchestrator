@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Orchestrator.Api.Endpoints;
@@ -193,6 +194,58 @@ public sealed class IntegrationEndpointTests(PostgresFixture fixture, Orchestrat
         requestedFrom.Add("U-someone-else");
 
         approval.RequestedFrom.ShouldBe(new[] { "U-magnus" });
+    }
+
+    [Theory]
+    [InlineData("\"Write\"", HttpStatusCode.BadRequest)]
+    [InlineData("\"Standard\"", HttpStatusCode.BadRequest)]
+    [InlineData("\"write\"", HttpStatusCode.BadRequest)]
+    [InlineData("1", HttpStatusCode.Created)]
+    public async Task PostRepository_AccessPolicyWireShapes(string accessPolicyJson, HttpStatusCode expected)
+    {
+        // Probes what the HTTP layer actually accepts for the enum field.
+        await ResetAsync();
+        var client = await AuthenticatedClientAsync();
+
+        var body = $$"""
+            {"name":"repo-http","remoteUrl":"https://dev.azure.com/kameleon/Platform/_git/repo-http","defaultBranch":"main","purpose":"HTTP layer probe","ownerContactId":"U-owner","accessPolicy":{{accessPolicyJson}},"buildCommands":{"restore":null,"build":null,"test":null,"lint":null,"workingDirectory":".","timeout":"00:30:00"},"instructionFilePaths":[]}
+            """;
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/admin/repositories");
+        request.Content = new StringContent(body, Encoding.UTF8, "application/json");
+        request.Headers.Add("X-CSRF-Token", _csrfToken);
+
+        var response = await client.SendAsync(request);
+
+        response.StatusCode.ShouldBe(expected, $"Response: {await response.Content.ReadAsStringAsync()}");
+    }
+
+    [Fact]
+    public async Task PostRepository_WithUnknownAccessPolicyString_IsRejected()
+    {
+        await ResetAsync();
+        var client = await AuthenticatedClientAsync();
+
+        var response = await PostWithCsrfAsync(client, "/api/admin/repositories", new
+        {
+            name = "repo-http",
+            remoteUrl = "https://dev.azure.com/kameleon/Platform/_git/repo-http",
+            defaultBranch = "main",
+            purpose = "HTTP layer probe",
+            ownerContactId = "U-owner",
+            accessPolicy = "Standard",
+            buildCommands = new
+            {
+                restore = (string?)null,
+                build = (string?)null,
+                test = (string?)null,
+                lint = (string?)null,
+                workingDirectory = ".",
+                timeout = "00:30:00",
+            },
+            instructionFilePaths = Array.Empty<string>(),
+        });
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
 
     // ---- Test infrastructure ----

@@ -20,9 +20,12 @@ export function useSession(): SessionState {
     retry: false,
   });
 
-  // A 401 anywhere clears the cached session so stale identity is never reused.
+  // A 401 anywhere settles the cached session to anonymous so stale identity
+  // is never reused. This must NOT remove the query: removal makes the still
+  // mounted observer refetch /api/auth/me, whose 401 re-fires this listener
+  // into an endless refetch loop. Settled null data is fresh and stays put.
   useEffect(() => {
-    const clear = () => queryClient.removeQueries({ queryKey: sessionKey });
+    const clear = () => queryClient.setQueryData(sessionKey, null);
     window.addEventListener(unauthorizedEvent, clear);
     return () => window.removeEventListener(unauthorizedEvent, clear);
   }, [queryClient]);

@@ -14,7 +14,7 @@ const baseRepository: RepositoryProfile = {
   defaultBranch: "main",
   purpose: "Customer-facing web app",
   ownerContactId: "U1",
-  accessPolicy: "Standard",
+  accessPolicy: "Write",
   buildCommands: {
     restore: "npm ci",
     build: "npm run build",

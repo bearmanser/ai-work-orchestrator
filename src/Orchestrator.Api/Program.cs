@@ -14,6 +14,7 @@ using Orchestrator.Adapters.Obsidian;
 using Orchestrator.Adapters.P1;
 using Orchestrator.Adapters.Slack;
 using Orchestrator.Api.Auth;
+using Orchestrator.Api.Configuration;
 using Orchestrator.Api.Dashboard;
 using Orchestrator.Api.Endpoints;
 using Orchestrator.Api.Webhooks;
@@ -48,6 +49,11 @@ using Orchestrator.Infrastructure.Persistence;
 using Orchestrator.Infrastructure.Policy;
 using Orchestrator.Infrastructure.Secrets;
 using Orchestrator.Infrastructure.Telemetry;
+
+// Repository-root .env first, so file-based secrets are visible to the
+// configuration the host builds below. Real environment variables win;
+// a missing file is silently ignored (container deployments).
+DotEnvLoader.LoadFromRepoRoot();
 
 var builder = WebApplication.CreateBuilder(args);
 

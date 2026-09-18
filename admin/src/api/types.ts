@@ -180,6 +180,19 @@ export interface BuildCommands {
   timeout: string;
 }
 
+/**
+ * Backend RepositoryAccess enum (Orchestrator.Domain.Authorization). Like
+ * TaskState below, it travels as its numeric value: the API has no
+ * JsonStringEnumConverter, so only numbers bind on request deserialization.
+ */
+export enum RepositoryAccess {
+  Read = 0,
+  Write = 1,
+}
+
+/** String form used in RepositoryProfileDto responses (r.AccessPolicy.ToString()). */
+export type RepositoryAccessName = "Read" | "Write";
+
 /** GET /api/admin/repositories, GET/PUT /api/admin/repositories/{id} — mirrors RepositoryProfileDto. */
 export interface RepositoryProfile {
   id: string;
@@ -188,7 +201,7 @@ export interface RepositoryProfile {
   defaultBranch: string;
   purpose: string;
   ownerContactId: string;
-  accessPolicy: string;
+  accessPolicy: RepositoryAccessName;
   buildCommands: BuildCommands;
   instructionFilePaths: string[];
   lastInspectedCommit: string | null;
@@ -203,7 +216,7 @@ export interface CreateRepositoryRequest {
   defaultBranch: string;
   purpose: string;
   ownerContactId: string;
-  accessPolicy: string;
+  accessPolicy: RepositoryAccess;
   buildCommands: BuildCommands;
   instructionFilePaths: string[];
 }

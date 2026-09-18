@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { RepositoryAccess } from "../../api/types";
 import { useCreateRepository, useRepositoryList } from "./useRepositories";
 
 /** Lists the repository catalog and lets an admin add a new repository. */
@@ -22,7 +23,7 @@ export function RepositoryListPage() {
         defaultBranch,
         purpose,
         ownerContactId,
-        accessPolicy: "Standard",
+        accessPolicy: RepositoryAccess.Write,
         buildCommands: {
           restore: null,
           build: null,

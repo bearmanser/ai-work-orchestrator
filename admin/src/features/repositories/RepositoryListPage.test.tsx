@@ -16,7 +16,7 @@ const oneRepository: RepositoryProfile = {
   defaultBranch: "main",
   purpose: "Customer-facing web app",
   ownerContactId: "U1",
-  accessPolicy: "Standard",
+  accessPolicy: "Write",
   buildCommands: { restore: null, build: null, test: null, lint: null, workingDirectory: ".", timeout: "00:30:00" },
   instructionFilePaths: [],
   lastInspectedCommit: null,
@@ -68,5 +68,9 @@ describe("RepositoryListPage", () => {
     await userEvent.click(screen.getByRole("button", { name: /add repository/i }));
 
     expect(seenBody).toMatchObject({ name: "new-repo", ownerContactId: "U2" });
+    // The backend has no JsonStringEnumConverter, so the RepositoryAccess enum
+    // only binds from its numeric value (Write = 1); any string fails request
+    // deserialization with a 400.
+    expect(seenBody).toMatchObject({ accessPolicy: 1 });
   });
 });

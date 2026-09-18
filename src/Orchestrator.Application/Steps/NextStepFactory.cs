@@ -52,11 +52,25 @@ public static class NextStepFactory
         // New review feedback arrived on a watched pull request: triage it.
         (TaskState.WatchingPullRequests, TaskTrigger.PullRequestFeedbackReceived) => PullRequestFeedback,
 
-        // Everything else - WaitingForHuman, WaitingForPlanConfirmation,
-        // WaitingForActionApproval, FeedbackAnswered back to WatchingPullRequests
-        // (reconciliation-polling driven, not step driven), AllRequiredApprovalsVerified
-        // to Completed (TaskCompletionService already creates "memory.curate" itself),
-        // and every terminal/idle transition - creates nothing here.
+        // Re-plan safety paths: these all land the task back in Planning, and
+        // need a fresh "planning" step exactly like the initial confirmation flow
+        // does, or the task would sit in Planning forever with nothing to
+        // dispatch. Baseline drift can be detected from any state that has left
+        // the repository in a possibly-changed condition; a denied restricted
+        // action, out-of-scope feedback, and a human requesting plan changes are
+        // each their own explicit path back to Planning.
+        (TaskState.Running, TaskTrigger.BaselineDriftDetected) => Planning,
+        (TaskState.Verifying, TaskTrigger.BaselineDriftDetected) => Planning,
+        (TaskState.WatchingPullRequests, TaskTrigger.BaselineDriftDetected) => Planning,
+        (TaskState.WaitingForActionApproval, TaskTrigger.ActionDenied) => Planning,
+        (TaskState.AddressingFeedback, TaskTrigger.MaterialScopeChange) => Planning,
+        (TaskState.WaitingForPlanConfirmation, TaskTrigger.PlanRevisionRequested) => Planning,
+
+        // Everything else - WaitingForHuman, FeedbackAnswered back to
+        // WatchingPullRequests (reconciliation-polling driven, not step driven),
+        // AllRequiredApprovalsVerified to Completed (TaskCompletionService already
+        // creates "memory.curate" itself), and every terminal/idle transition -
+        // creates nothing here.
         _ => null,
     };
 }

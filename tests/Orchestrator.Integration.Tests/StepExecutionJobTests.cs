@@ -103,6 +103,50 @@ public class StepExecutionJobTests(PostgresFixture fixture)
         outboxMessage.ProcessedAt.ShouldBeNull();
     }
 
+    [Fact]
+    public async Task RunAsync_BaselineDriftDetectedWhileRunning_CreatesNewPlanningStepAndEnqueuesIt()
+    {
+        // Proves the retrospective-review fix: BaselineDriftDetected fired from
+        // Running correctly moves the task back to Planning via the state machine,
+        // but before this fix NextStepFactory.CapabilityFor fell into the
+        // undocumented gap in its catch-all and returned null for it, so nothing
+        // ever created the fresh "planning" step needed to actually replan. This
+        // seeds a task already Running with a step whose handler fires
+        // BaselineDriftDetected and asserts a new "planning" step, and its
+        // "step.dispatch" outbox message, both now exist for real.
+        Guid taskId;
+        await using (var seedDb = fixture.NewDbContext())
+        {
+            var task = new WorkTask("drift test", "U1", TaskSource.Slack, $"c-{Guid.NewGuid()}", _clock.GetUtcNow());
+            task.Fire(TaskTrigger.PlanningStarted, _clock.GetUtcNow());
+            task.Fire(TaskTrigger.PlanPosted, _clock.GetUtcNow());
+            task.Fire(TaskTrigger.PlanConfirmed, _clock.GetUtcNow());
+            task.Fire(TaskTrigger.WorkDispatched, _clock.GetUtcNow());
+            seedDb.Tasks.Add(task);
+            var step = new Step(task.Id, "coding_agent.execute", dependsOnStepId: null, inputArtifactId: null, _clock.GetUtcNow());
+            seedDb.Steps.Add(step);
+            await seedDb.SaveChangesAsync();
+            taskId = task.Id;
+        }
+
+        var stepId = await StepIdForAsync(taskId);
+        var handler = new StubHandler("coding_agent.execute", new StepOutcome(TaskTrigger.BaselineDriftDetected, null, null));
+        var job = BuildJob(fixture.NewDbContext(), new StepDispatcher([handler]));
+
+        await job.RunAsync(stepId, default);
+
+        await using var db = fixture.NewDbContext();
+        var task2 = await db.Tasks.SingleAsync(t => t.Id == taskId);
+        task2.State.ShouldBe(TaskState.Planning);
+
+        var nextStep = await db.Steps.SingleAsync(s => s.TaskId == taskId && s.Capability == "planning");
+        nextStep.Status.ShouldBe(StepStatus.Pending);
+
+        var dispatchMessages = await db.Outbox.Where(m => m.MessageType == "step.dispatch").ToListAsync();
+        var outboxMessage = dispatchMessages.Single(m => m.PayloadJson.Contains(nextStep.Id.ToString()));
+        outboxMessage.ProcessedAt.ShouldBeNull();
+    }
+
     private async Task<Guid> StepIdForAsync(Guid taskId)
     {
         await using var db = fixture.NewDbContext();

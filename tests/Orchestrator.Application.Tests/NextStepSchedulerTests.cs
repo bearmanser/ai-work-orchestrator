@@ -21,6 +21,18 @@ public sealed class NextStepFactoryTests
     [InlineData(TaskState.AddressingFeedback, TaskTrigger.CorrectionRequired, "coding_agent.execute")]
     [InlineData(TaskState.Verifying, TaskTrigger.PullRequestOpened, "pull_request.create")]
     [InlineData(TaskState.WatchingPullRequests, TaskTrigger.PullRequestFeedbackReceived, "pull_request.feedback")]
+    // The re-plan safety paths Task 49/50 correctly compute a Planning destination
+    // for, but which the catch-all's comment never actually listed: drift
+    // detected mid-flight, a restricted action denied, out-of-scope feedback, and
+    // a human requesting plan changes. Each needs a fresh "planning" step just
+    // like the initial confirmation flow does, or the task would sit in Planning
+    // forever with nothing dispatched.
+    [InlineData(TaskState.Running, TaskTrigger.BaselineDriftDetected, "planning")]
+    [InlineData(TaskState.Verifying, TaskTrigger.BaselineDriftDetected, "planning")]
+    [InlineData(TaskState.WatchingPullRequests, TaskTrigger.BaselineDriftDetected, "planning")]
+    [InlineData(TaskState.WaitingForActionApproval, TaskTrigger.ActionDenied, "planning")]
+    [InlineData(TaskState.AddressingFeedback, TaskTrigger.MaterialScopeChange, "planning")]
+    [InlineData(TaskState.WaitingForPlanConfirmation, TaskTrigger.PlanRevisionRequested, "planning")]
     public void CapabilityFor_KnownTransition_ReturnsExpectedCapability(
         TaskState from, TaskTrigger trigger, string expectedCapability)
     {
@@ -42,8 +54,6 @@ public sealed class NextStepFactoryTests
     // Idle/waiting transitions never dispatch anything.
     [InlineData(TaskState.Planning, TaskTrigger.BlockingQuestionRaised)]
     [InlineData(TaskState.WaitingForHuman, TaskTrigger.QuestionAnswered)]
-    [InlineData(TaskState.WaitingForActionApproval, TaskTrigger.ActionDenied)]
-    [InlineData(TaskState.AddressingFeedback, TaskTrigger.MaterialScopeChange)]
     [InlineData(TaskState.Verifying, TaskTrigger.NonCodeOutcomeAccepted)]
     public void CapabilityFor_TransitionNeedingNoStep_ReturnsNull(TaskState from, TaskTrigger trigger)
     {

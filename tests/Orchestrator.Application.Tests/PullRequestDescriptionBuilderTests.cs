@@ -84,6 +84,30 @@ public sealed class PullRequestDescriptionBuilderTests
         description.ShouldContain("Should cancelled orders be included?");
     }
 
+    [Fact]
+    public void Build_WithSecretShapedUnresolvedQuestion_RedactsIt()
+    {
+        var description = PullRequestDescriptionBuilder.Build(
+            EvidenceWith(questions: [
+                "Failing call used token ghp_abcdefghijklmnopqrstuvwxyz0123456789, is that expected?"
+            ]), Plan, []);
+
+        description.ShouldNotContain("ghp_abcdefghijklmnopqrstuvwxyz0123456789");
+        description.ShouldContain("[redacted]");
+        description.ShouldContain("Failing call used token [redacted], is that expected?");
+    }
+
+    [Fact]
+    public void Build_WithOrdinaryUnresolvedQuestion_IsUnaffectedByRedaction()
+    {
+        const string question = "Should cancelled orders be included?";
+
+        var description = PullRequestDescriptionBuilder.Build(EvidenceWith(questions: [question]), Plan, []);
+
+        description.ShouldContain(question);
+        description.ShouldNotContain("[redacted]");
+    }
+
     private static TaskEvidence EvidenceWith(
         IReadOnlyList<CheckResult>? runtimeChecks = null,
         IReadOnlyList<DomainCheckResult>? domainChecks = null,

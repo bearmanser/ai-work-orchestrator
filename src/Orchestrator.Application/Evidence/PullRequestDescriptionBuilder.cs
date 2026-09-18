@@ -13,6 +13,8 @@ namespace Orchestrator.Application.Evidence;
 /// </summary>
 public static class PullRequestDescriptionBuilder
 {
+    private const string RedactedPlaceholder = "[redacted]";
+
     public static string Build(
         TaskEvidence evidence, PlanRevision plan, IReadOnlyList<PullRequestRef> siblings)
     {
@@ -53,8 +55,14 @@ public static class PullRequestDescriptionBuilder
         }
         else
         {
+            // UnresolvedQuestions is agent-authored free text (unlike the objective, revision
+            // hash, check names and PR links elsewhere in this description, which are all
+            // orchestrator-authored structured values). A PR description is public-facing, so
+            // any secret-shaped span an agent happened to quote - e.g. from an error message or
+            // an environment dump - is redacted rather than rejected: this is generated once near
+            // the end of a task, and there is no fallback path if building it throws instead.
             foreach (var question in evidence.UnresolvedQuestions)
-                sb.AppendLine($"- {question}");
+                sb.AppendLine($"- {SecretShapeDetector.Redact(question, RedactedPlaceholder)}");
             sb.AppendLine();
         }
 

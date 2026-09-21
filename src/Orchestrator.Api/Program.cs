@@ -273,18 +273,29 @@ var planConfirmationOptions = new PlanConfirmationOptions();
 builder.Configuration.GetSection("Orchestrator:Plans").Bind(planConfirmationOptions);
 builder.Services.AddSingleton(planConfirmationOptions);
 
-var vaultRoot = builder.Configuration["Orchestrator:Vault:Root"] ?? string.Empty;
+// Repo-scoped relative vault paths (./vault in .env or appsettings.Development.json)
+// resolve against the repository root so they land in the same place regardless
+// of the process working directory. Absolute paths pass through unchanged.
+var vaultBasePath = RepoRootFinder.Find(AppContext.BaseDirectory, builder.Environment.ContentRootPath);
+var vaultRoot = VaultPathResolver.Resolve(
+    builder.Configuration["Orchestrator:Vault:Root"], vaultBasePath);
+var vaultIndexDirectory = VaultPathResolver.Resolve(
+    builder.Configuration["Orchestrator:Vault:IndexDirectory"], vaultBasePath);
 if (string.IsNullOrWhiteSpace(vaultRoot))
 {
     builder.Services.AddSingleton<IVaultStore, NullVaultStore>();
 }
 else
 {
-    var vaultIndexDirectory = builder.Configuration["Orchestrator:Vault:IndexDirectory"]
-        ?? Path.Combine(vaultRoot, ".orchestrator-index");
+    // Eager: the vault directory exists from startup, not just on first use
+    // (the store is registered behind a lazy singleton factory).
+    Directory.CreateDirectory(vaultRoot);
+    if (string.IsNullOrWhiteSpace(vaultIndexDirectory))
+        vaultIndexDirectory = Path.Combine(vaultRoot, ".orchestrator-index");
     builder.Services.AddSingleton<IVaultStore>(sp => new FileSystemVaultStore(
         vaultRoot, vaultIndexDirectory, sp.GetRequiredService<TimeProvider>()));
 }
+builder.Services.AddSingleton(new VaultOptions(vaultRoot, vaultIndexDirectory));
 
 var meetingTranscriptOptions = new MeetingTranscriptOptions();
 builder.Configuration.GetSection("Orchestrator:Meetings").Bind(meetingTranscriptOptions);

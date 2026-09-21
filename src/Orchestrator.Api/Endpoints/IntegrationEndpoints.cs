@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Npgsql;
 using Orchestrator.Api.Auth;
+using Orchestrator.Api.Configuration;
 using Orchestrator.Application.Integrations;
 using Orchestrator.Application.Ports;
 
@@ -46,7 +47,7 @@ public static class IntegrationEndpoints
         ["p1"] = "p1.default.connection",
         // Obsidian's vault store is filesystem-backed (Orchestrator:Vault:Root), not
         // secret-backed - it is listed so admins can see it, but has no secret
-        // reference and no live check.
+        // reference. Its status and live check come from VaultOptions instead.
         ["obsidian"] = null,
     };
 
@@ -60,12 +61,12 @@ public static class IntegrationEndpoints
     }
 
     private static async Task<IResult> List(
-        ISecretStore secrets, IIntegrationSettingsStore settings, CancellationToken ct)
+        ISecretStore secrets, IIntegrationSettingsStore settings, VaultOptions vault, CancellationToken ct)
     {
         var statuses = new List<IntegrationStatus>();
         foreach (var (name, defaultSecretRef) in KnownIntegrations)
         {
-            statuses.Add(await BuildStatusAsync(name, defaultSecretRef, secrets, settings, ct));
+            statuses.Add(await BuildStatusAsync(name, defaultSecretRef, secrets, settings, vault, ct));
         }
 
         return Results.Json(statuses);
@@ -73,13 +74,13 @@ public static class IntegrationEndpoints
 
     private static async Task<IResult> Test(
         string name, ClaimsPrincipal user,
-        ISecretStore secrets, IIntegrationSettingsStore settings, IAuditWriter audit,
+        ISecretStore secrets, IIntegrationSettingsStore settings, VaultOptions vault, IAuditWriter audit,
         TimeProvider clock, CancellationToken ct)
     {
         if (!KnownIntegrations.TryGetValue(name, out var defaultSecretRef))
             return Results.NotFound();
 
-        var (health, detail) = await RunLiveCheckAsync(name, defaultSecretRef, settings, secrets, ct);
+        var (health, detail) = await RunLiveCheckAsync(name, defaultSecretRef, settings, secrets, vault, ct);
         var now = clock.GetUtcNow();
         await settings.RecordTestResultAsync(name, health, detail, now, ct);
 
@@ -92,7 +93,7 @@ public static class IntegrationEndpoints
             CorrelationId: Guid.CreateVersion7().ToString(),
             Details: new Dictionary<string, string> { ["name"] = name }), ct);
 
-        var status = await BuildStatusAsync(name, defaultSecretRef, secrets, settings, ct);
+        var status = await BuildStatusAsync(name, defaultSecretRef, secrets, settings, vault, ct);
         return Results.Json(status);
     }
 
@@ -102,6 +103,15 @@ public static class IntegrationEndpoints
     {
         if (!KnownIntegrations.ContainsKey(name))
             return Results.NotFound();
+
+        if (name == "obsidian")
+        {
+            return Results.BadRequest(new
+            {
+                message = "The obsidian integration is filesystem-backed (Orchestrator:Vault:Root) " +
+                          "and uses no secret reference.",
+            });
+        }
 
         if (string.IsNullOrWhiteSpace(request.SecretRef))
             return Results.BadRequest(new { message = "A secret reference is required." });
@@ -144,8 +154,12 @@ public static class IntegrationEndpoints
     }
 
     private static async Task<IntegrationStatus> BuildStatusAsync(
-        string name, string? defaultSecretRef, ISecretStore secrets, IIntegrationSettingsStore settings, CancellationToken ct)
+        string name, string? defaultSecretRef, ISecretStore secrets, IIntegrationSettingsStore settings,
+        VaultOptions vault, CancellationToken ct)
     {
+        if (name == "obsidian")
+            return await BuildObsidianStatusAsync(vault, settings, ct);
+
         var setting = await settings.GetAsync(name, ct);
         var secretRef = setting?.SecretRef ?? defaultSecretRef;
 
@@ -166,14 +180,36 @@ public static class IntegrationEndpoints
     }
 
     /// <summary>
-    /// A live, read-only connectivity check. Only P1 has a cheap one available in this
-    /// codebase today (open a read-only transaction against its configured connection
-    /// string); every other integration honestly reports NotImplemented rather than
-    /// fabricating a fake success. Never throws - any failure becomes an Unhealthy result.
+    /// Obsidian's status comes from <see cref="VaultOptions"/>, not the secret
+    /// store: configured means a vault root is set, and the detail names the
+    /// effective root. A recorded test result (health/detail) takes precedence
+    /// when one exists.
+    /// </summary>
+    private static async Task<IntegrationStatus> BuildObsidianStatusAsync(
+        VaultOptions vault, IIntegrationSettingsStore settings, CancellationToken ct)
+    {
+        var configured = ObsidianIntegrationProbe.IsConfigured(vault.Root);
+        var setting = await settings.GetAsync("obsidian", ct);
+        return new IntegrationStatus("obsidian", configured, "",
+            setting?.LastCheckedAt,
+            setting?.Health ?? (configured ? "Unknown" : "NotConfigured"),
+            setting?.Detail ?? (configured ? vault.Root : null));
+    }
+
+    /// <summary>
+    /// A live, read-only connectivity check. P1 has a cheap one (a read-only
+    /// transaction) and obsidian probes its vault directory (existence plus
+    /// listability, no writes); every other integration honestly reports
+    /// NotImplemented rather than fabricating a fake success. Never throws -
+    /// any failure becomes an Unhealthy result.
     /// </summary>
     private static async Task<(string Health, string? Detail)> RunLiveCheckAsync(
-        string name, string? defaultSecretRef, IIntegrationSettingsStore settings, ISecretStore secrets, CancellationToken ct)
+        string name, string? defaultSecretRef, IIntegrationSettingsStore settings, ISecretStore secrets,
+        VaultOptions vault, CancellationToken ct)
     {
+        if (name == "obsidian")
+            return ObsidianIntegrationProbe.Check(vault.Root);
+
         if (name != "p1")
         {
             return ("NotImplemented", "No live connectivity check is wired up for this integration yet.");

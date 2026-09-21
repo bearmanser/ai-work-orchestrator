@@ -21,3 +21,10 @@ admin/coverage/
 
 # Parallel task worktrees
 .worktrees/
+
+# Local orchestrator vault (clean dev vault, auto-created on first run)
+# and its rebuildable search index - never commit note content.
+# Docker deployments use VAULT_ROOT (/srv/orchestrator/vault) instead.
+/vault/
+/vault-index/
+/brag-output
